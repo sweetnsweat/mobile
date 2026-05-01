@@ -13,6 +13,7 @@ import { GradientText } from '../components/GradientText';
 import { ScreenBackground } from '../components/ScreenBackground';
 import { useBounceAnimation } from '../hooks/useBounceAnimation';
 import { login, signup } from '../services/AuthService';
+import { getMyProfile } from '../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
 
@@ -64,15 +65,19 @@ export function AuthScreen({ navigation }: Props) {
     try {
       if (isLogin) {
         // Login API call
-        const response = await login(loginId, password);
-        console.log('Login success:', response.user);
-        navigation.navigate('Checklist');
+        await login(loginId, password);
+        const profile = await getMyProfile();
+        if (!profile.onboardingCompleted) navigation.navigate('Onboarding');
+        else if (!profile.todayConditionCompleted) navigation.navigate('Condition');
+        else navigation.navigate('Home');
       } else {
         // Signup API call
         const response = await signup(loginId, password, nickname);
         console.log('Signup success:', response.user);
         setIsLogin(true);
+        setLoginId('');
         setPassword('');
+        setNickname('');
       }
     } catch (err: any) {
       setError(err.message || '요청 중 오류가 발생했습니다');

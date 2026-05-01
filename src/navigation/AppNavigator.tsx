@@ -8,11 +8,13 @@ import { EmojiMapHeroScreen } from '../screens/EmojiMapHeroScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ChecklistScreen } from '../screens/ChecklistScreen';
+import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { StatisticsScreen } from '../screens/StatisticsScreen';
 import { PushNotificationScreen } from '../screens/PushNotificationScreen';
 import { CharacterQuestScreen } from '../screens/CharacterQuestScreen';
 import { CharacterQuestScreen2 } from '../screens/CharacterQuestScreen2';
 import { ExerciseListScreen } from '../screens/ExerciseListScreen';
+import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { CharacterSelectScreen } from '../screens/CharacterSelectScreen';
 import { BattleScreen } from '../screens/BattleScreen';
 import { MypageScreen } from '../screens/MypageScreen';
@@ -31,13 +33,15 @@ export function AppNavigator() {
         >
           <Stack.Screen name="EmojiMapHero" component={EmojiMapHeroScreen} />
           <Stack.Screen name="Auth" component={AuthScreen} />
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Checklist" component={ChecklistScreen} />
+          <Stack.Screen name="Condition" component={ChecklistScreen} />
           <Stack.Screen name="Statistics" component={StatisticsScreen} />
           <Stack.Screen name="Push" component={PushNotificationScreen} />
           <Stack.Screen name="CharacterQuest" component={CharacterQuestScreen} />
           <Stack.Screen name="CharacterQuest2" component={CharacterQuestScreen2} />
           <Stack.Screen name="Exercise" component={ExerciseListScreen} />
+          <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
           <Stack.Screen name="CharacterSelect" component={CharacterSelectScreen} />
           <Stack.Screen name="Battle" component={BattleScreen} />
           <Stack.Screen name="Mypage" component={MypageScreen} />

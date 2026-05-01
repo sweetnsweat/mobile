@@ -26,7 +26,15 @@ export interface UserProfile {
   loginId: string;
   nickname: string;
   status: string;
-  createdAt: string;
+  onboardingCompleted: boolean;
+  requiresOnboarding: boolean;
+  todayConditionCompleted: boolean;
+  activeRoutineId: number | null;
+  currentExerciseStatus: string | null;
+  fitnessGoal: string | null;
+  preferredWorkoutPlace: string | null;
+  weeklyWorkoutFrequency: number | null;
+  availableWorkoutMinutes: number | null;
 }
 
 export interface AuthResponse {

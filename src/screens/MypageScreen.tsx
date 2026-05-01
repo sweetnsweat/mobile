@@ -16,6 +16,7 @@ import { ScreenBackground } from '../components/ScreenBackground';
 import { BottomNav } from '../components/BottomNav';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { logout, getStoredAuth, clearStoredAuth } from '../services/AuthService';
+import { getMyProfile } from '../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
 
@@ -58,7 +59,12 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
 
 export function MypageScreen({ navigation }: Props) {
   const [toggles, setToggles] = useState<Record<string, boolean>>({ bell: true, dark: false });
+  const [nickname, setNickname] = useState(PROFILE.name);
   const expPct = Math.round((PROFILE.exp / PROFILE.expMax) * 100);
+
+  React.useEffect(() => {
+    getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     const auth = getStoredAuth();
@@ -99,7 +105,7 @@ export function MypageScreen({ navigation }: Props) {
               </View>
               <View style={s.profileInfo}>
                 <View style={s.nameRow}>
-                  <Text style={s.profileName}>{PROFILE.name}</Text>
+                  <Text style={s.profileName}>{nickname}</Text>
                   <View style={s.titleBadge}>
                     <Text style={s.titleBadgeTxt}>{PROFILE.title}</Text>
                   </View>
@@ -222,7 +228,7 @@ export function MypageScreen({ navigation }: Props) {
               <Heart size={20} color="#fff" strokeWidth={2.5} />
             </View>
             <View style={s.bannerText}>
-              <Text style={s.bannerTitle}>오늘도 수연 파이팅! 🔥</Text>
+              <Text style={s.bannerTitle}>오늘도 {nickname} 파이팅! 🔥</Text>
               <Text style={s.bannerSub}>7일 연속 달성 중! 계속 달려봐요</Text>
             </View>
           </LinearGradient>

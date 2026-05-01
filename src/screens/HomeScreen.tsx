@@ -12,6 +12,7 @@ import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ScreenBackground } from '../components/ScreenBackground';
 import { BottomNav } from '../components/BottomNav';
 import { SectionHeader } from '../components/SectionHeader';
+import { getMyProfile } from '../services/UserService';
 
 const { width: W } = Dimensions.get('window');
 
@@ -27,17 +28,17 @@ const QUESTS = [
 ];
 
 const RANKING = [
-  { rank: 1, name: '하준', score: 1240, medal: '🥇' },
-  { rank: 2, name: '나 (수연)', score: 980, medal: '🥈' },
-  { rank: 3, name: '민지', score: 860, medal: '🥉' },
+  { rank: 1, name: '하준', score: 1240, medal: '🥇', isMe: false },
+  { rank: 2, name: '',    score: 980,  medal: '🥈', isMe: true  },
+  { rank: 3, name: '민지', score: 860,  medal: '🥉', isMe: false },
 ];
 
 const WORLD_RANKING = [
-  { rank: 1, name: '칼라일', score: 9820, img: 'https://i.imgur.com/83q0Fz8.jpeg', title: '황제', colors: ['#facc15', '#f59e0b'] as [string, string] },
-  { rank: 2, name: '라이벌 하준', score: 8740, img: 'https://i.imgur.com/Zl9DFkK.jpeg', title: '도전자', colors: ['#d1d5db', '#9ca3af'] as [string, string] },
-  { rank: 3, name: '이수연', score: 7210, img: 'https://i.imgur.com/v0njcuh.png', title: '불꽃', colors: ['#fdba74', '#fb7185'] as [string, string] },
-  { rank: 4, name: '민수 선배', score: 6540, img: 'https://i.imgur.com/ub32dOr.png', title: '베테랑', colors: ['#7dd3fc', '#60a5fa'] as [string, string] },
-  { rank: 5, name: '김태양', score: 5980, img: '', title: '신예', colors: ['#6ee7b7', '#2dd4bf'] as [string, string] },
+  { rank: 1, name: '칼라일',     score: 9820, img: 'https://i.imgur.com/83q0Fz8.jpeg', title: '황제',  colors: ['#facc15', '#f59e0b'] as [string, string], isMe: false },
+  { rank: 2, name: '라이벌 하준', score: 8740, img: 'https://i.imgur.com/Zl9DFkK.jpeg', title: '도전자', colors: ['#d1d5db', '#9ca3af'] as [string, string], isMe: false },
+  { rank: 3, name: '',           score: 7210, img: 'https://i.imgur.com/v0njcuh.png',  title: '불꽃',  colors: ['#fdba74', '#fb7185'] as [string, string], isMe: true  },
+  { rank: 4, name: '민수 선배',   score: 6540, img: 'https://i.imgur.com/ub32dOr.png', title: '베테랑', colors: ['#7dd3fc', '#60a5fa'] as [string, string], isMe: false },
+  { rank: 5, name: '김태양',      score: 5980, img: '',                                title: '신예',  colors: ['#6ee7b7', '#2dd4bf'] as [string, string], isMe: false },
 ];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -47,8 +48,13 @@ export function HomeScreen({ navigation }: Props) {
   const [slide, setSlide] = useState(0);
   const [animating, setAnimating] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const [nickname, setNickname] = useState('');
 
   const nextIndex = (slide + 1) % SLIDES.length;
+
+  useEffect(() => {
+    getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(goNext, 3000);
@@ -78,7 +84,7 @@ export function HomeScreen({ navigation }: Props) {
         <View style={s.topBar}>
           <View>
             <Text style={s.greeting}>Good Morning</Text>
-            <Text style={s.title}>수연의 도전 🔥</Text>
+            <Text style={s.title}>{nickname}의 도전 🔥</Text>
           </View>
           <TouchableOpacity style={s.menuBtn}>
             <Menu size={16} color="#4b5563" strokeWidth={2.5} />
@@ -175,7 +181,7 @@ export function HomeScreen({ navigation }: Props) {
                 </View>
                 <LinearGradient colors={WORLD_RANKING[2].colors} style={[s.podiumLabel, { minWidth: 56 }]}>
                   <Text style={s.podiumRank}>🥉 3위</Text>
-                  <Text style={s.podiumName} numberOfLines={1}>{WORLD_RANKING[2].name}</Text>
+                  <Text style={s.podiumName} numberOfLines={1}>{WORLD_RANKING[2].isMe ? nickname : WORLD_RANKING[2].name}</Text>
                   <Text style={s.podiumScore}>{WORLD_RANKING[2].score.toLocaleString()}</Text>
                 </LinearGradient>
               </View>
@@ -192,7 +198,7 @@ export function HomeScreen({ navigation }: Props) {
                     ) : <View style={[s.listAvatarImg, { backgroundColor: '#e5e7eb' }]} />}
                   </View>
                   <View style={s.listInfo}>
-                    <Text style={s.listName}>{r.name}</Text>
+                    <Text style={s.listName}>{r.isMe ? nickname : r.name}</Text>
                     <Text style={s.listTitle}>{r.title}</Text>
                   </View>
                   <View style={s.listScore}>
@@ -243,10 +249,10 @@ export function HomeScreen({ navigation }: Props) {
               {RANKING.map((r, i) => (
                 <View
                   key={r.rank}
-                  style={[s.rankRow, i < RANKING.length - 1 && s.listBorder, r.name.includes('수연') && s.rankRowMe]}
+                  style={[s.rankRow, i < RANKING.length - 1 && s.listBorder, r.isMe && s.rankRowMe]}
                 >
                   <Text style={s.medal}>{r.medal}</Text>
-                  <Text style={[s.rankName, r.name.includes('수연') && s.rankNameMe]}>{r.name}</Text>
+                  <Text style={[s.rankName, r.isMe && s.rankNameMe]}>{r.isMe ? `나 (${nickname})` : r.name}</Text>
                   <View style={s.listScore}>
                     <Flame size={14} color="#fb923c" strokeWidth={2.5} />
                     <Text style={s.rankScore}>{r.score.toLocaleString()}</Text>

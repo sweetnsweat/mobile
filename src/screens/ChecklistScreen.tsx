@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Animated, StatusBar,
+  Animated, StatusBar, Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Slider from '@react-native-community/slider';
@@ -12,6 +12,7 @@ import { RootStackParamList } from '../types/navigation';
 import { GradientText } from '../components/GradientText';
 import { ScreenBackground } from '../components/ScreenBackground';
 import { useBounceAnimation } from '../hooks/useBounceAnimation';
+import { saveCondition } from '../services/ConditionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checklist'>;
 
@@ -38,6 +39,27 @@ export function ChecklistScreen({ navigation }: Props) {
   const [sleepQuality, setSleepQuality] = useState('');
   const [stressLevel,  setStressLevel]  = useState(3);
   const [energy,       setEnergy]       = useState(3);
+  const [loading,      setLoading]      = useState(false);
+
+  const handleSubmit = async () => {
+    if (!condition) {
+      Alert.alert('알림', '오늘 컨디션을 선택해주세요.');
+      return;
+    }
+    if (!sleepQuality) {
+      Alert.alert('알림', '수면 상태를 선택해주세요.');
+      return;
+    }
+    try {
+      setLoading(true);
+      await saveCondition({ condition, sleepQuality, stressLevel, energy });
+      navigation.navigate('Home');
+    } catch (e: any) {
+      Alert.alert('오류', e?.message ?? '컨디션 저장에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const b1 = useBounceAnimation(3000);
   const b2 = useBounceAnimation(2500);
@@ -173,10 +195,10 @@ export function ChecklistScreen({ navigation }: Props) {
 
             {/* Submit */}
             <View style={s.submitWrap}>
-              <TouchableOpacity activeOpacity={0.85} style={s.submitBtn} onPress={() => navigation.navigate('Home')}>
+              <TouchableOpacity activeOpacity={0.85} style={s.submitBtn} onPress={handleSubmit} disabled={loading}>
                 <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.submitGrad}>
                   <TrendingUp size={20} color="#fff" strokeWidth={2.5} />
-                  <Text style={s.submitTxt}>완료하기</Text>
+                  <Text style={s.submitTxt}>{loading ? '저장 중...' : '완료하기'}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
