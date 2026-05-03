@@ -210,7 +210,8 @@ export function OnboardingScreen({ navigation }: Props) {
         preferredExerciseTypes: exerciseTypes,
       });
       const profile = await getMyProfile();
-      if (!profile.todayConditionCompleted) navigation.navigate('Condition');
+      if (profile.routineSetupRequired) navigation.navigate('RoutineSetup', { todayConditionCompleted: profile.todayConditionCompleted });
+      else if (!profile.todayConditionCompleted) navigation.navigate('Condition');
       else navigation.navigate('Home');
     } catch (e: any) {
       Alert.alert('오류', e?.message ?? '프로필 저장에 실패했습니다.');

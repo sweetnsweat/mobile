@@ -30,6 +30,7 @@ export interface UserProfile {
   requiresOnboarding: boolean;
   todayConditionCompleted: boolean;
   activeRoutineId: number | null;
+  routineSetupRequired: boolean;
   currentExerciseStatus: string | null;
   fitnessGoal: string | null;
   preferredWorkoutPlace: string | null;

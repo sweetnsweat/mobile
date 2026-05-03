@@ -271,9 +271,9 @@ export function ExerciseListScreen({ navigation }: Props) {
 
         {/* 다음 버튼 */}
         <View style={s.nextWrap}>
-          <TouchableOpacity onPress={() => navigation.navigate('Condition')} activeOpacity={0.85} style={s.nextBtn}>
+          <TouchableOpacity onPress={() => navigation.navigate('RoutineCreate')} activeOpacity={0.85} style={s.nextBtn}>
             <LinearGradient colors={['#ec4899', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.nextGrad}>
-              <Text style={s.nextTxt}>다음</Text>
+              <Text style={s.nextTxt}>루틴 만들기</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>

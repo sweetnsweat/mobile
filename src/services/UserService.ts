@@ -31,6 +31,7 @@ export interface UserProfileResponse {
   requiresOnboarding: boolean;
   todayConditionCompleted: boolean;
   activeRoutineId: number | null;
+  routineSetupRequired: boolean;
 }
 
 function authHeader(): Record<string, string> {

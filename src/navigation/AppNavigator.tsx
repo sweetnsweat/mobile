@@ -7,10 +7,12 @@ import { RootStackParamList } from '../types/navigation';
 import { EmojiMapHeroScreen } from '../screens/EmojiMapHeroScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import { ChecklistScreen } from '../screens/ChecklistScreen';
+import { ConditionScreen } from '../screens/ConditionScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { StatisticsScreen } from '../screens/StatisticsScreen';
 import { PushNotificationScreen } from '../screens/PushNotificationScreen';
+import { RoutineSetupScreen } from '../screens/RoutineSetupScreen';
+import { RoutineCreateScreen } from '../screens/RoutineCreateScreen';
 import { CharacterQuestScreen } from '../screens/CharacterQuestScreen';
 import { CharacterQuestScreen2 } from '../screens/CharacterQuestScreen2';
 import { ExerciseListScreen } from '../screens/ExerciseListScreen';
@@ -34,8 +36,10 @@ export function AppNavigator() {
           <Stack.Screen name="EmojiMapHero" component={EmojiMapHeroScreen} />
           <Stack.Screen name="Auth" component={AuthScreen} />
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+          <Stack.Screen name="RoutineSetup" component={RoutineSetupScreen} />
+          <Stack.Screen name="RoutineCreate" component={RoutineCreateScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Condition" component={ChecklistScreen} />
+          <Stack.Screen name="Condition" component={ConditionScreen} />
           <Stack.Screen name="Statistics" component={StatisticsScreen} />
           <Stack.Screen name="Push" component={PushNotificationScreen} />
           <Stack.Screen name="CharacterQuest" component={CharacterQuestScreen} />

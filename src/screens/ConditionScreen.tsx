@@ -14,7 +14,7 @@ import { ScreenBackground } from '../components/ScreenBackground';
 import { useBounceAnimation } from '../hooks/useBounceAnimation';
 import { saveCondition } from '../services/ConditionService';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Checklist'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'Condition'>;
 
 const CONDITIONS = [
   { value: 'great',  label: '최고', emoji: '😄', borderColor: '#84cc16', bgColor: '#f7fee7' },
@@ -34,7 +34,7 @@ const SLEEP_OPTIONS = [
 function getStressEmoji(v: number) { return ['😌','🙂','😐','😰','😫'][v - 1]; }
 function getEnergyEmoji(v: number) { return ['🔋','😴','⚡','💪','✨'][v - 1]; }
 
-export function ChecklistScreen({ navigation }: Props) {
+export function ConditionScreen({ navigation }: Props) {
   const [condition,    setCondition]    = useState('');
   const [sleepQuality, setSleepQuality] = useState('');
   const [stressLevel,  setStressLevel]  = useState(3);

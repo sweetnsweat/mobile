@@ -68,6 +68,7 @@ export function AuthScreen({ navigation }: Props) {
         await login(loginId, password);
         const profile = await getMyProfile();
         if (!profile.onboardingCompleted) navigation.navigate('Onboarding');
+        else if (profile.routineSetupRequired) navigation.navigate('RoutineSetup', { todayConditionCompleted: profile.todayConditionCompleted });
         else if (!profile.todayConditionCompleted) navigation.navigate('Condition');
         else navigation.navigate('Home');
       } else {
