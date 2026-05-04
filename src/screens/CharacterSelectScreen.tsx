@@ -15,12 +15,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CharacterSelect'>;
 
 const CHAR_IMG = 'https://i.imgur.com/v0njcuh.png';
 
-const STATS = [
-  { label: '체력',   val: 82 },
-  { label: '지구력', val: 75 },
-  { label: '열정',   val: 90 },
-];
-
 export function CharacterSelectScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const displayName = name.trim() || '플레이어';
@@ -78,18 +72,6 @@ export function CharacterSelectScreen({ navigation }: Props) {
                 <Text style={s.charDesc}>
                   체대 입시를 준비 중인 열정 넘치는 고3.{'\n'}민수 선배에게 도움을 받으며 실력을 키우는 중! 💪
                 </Text>
-
-                {/* Stats */}
-                <View style={s.statsRow}>
-                  {STATS.map(stat => (
-                    <View key={stat.label} style={s.statBox}>
-                      <GradientText colors={['#ec4899', '#0ea5e9']} style={s.statVal}>
-                        {String(stat.val)}
-                      </GradientText>
-                      <Text style={s.statLabel}>{stat.label}</Text>
-                    </View>
-                  ))}
-                </View>
               </View>
             </View>
 
