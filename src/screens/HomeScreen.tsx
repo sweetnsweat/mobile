@@ -81,6 +81,15 @@ function todayRoutineWorkoutCount(todayRoutine: TodayRoutineResponse): number {
   return todayRoutine.session?.items.length ?? 0;
 }
 
+function getTimeGreeting(date = new Date()): string {
+  const hour = (date.getUTCHours() + 9) % 24;
+  if (hour < 5) return 'Good Night';
+  if (hour < 12) return 'Good Morning';
+  if (hour < 18) return 'Good Afternoon';
+  if (hour < 22) return 'Good Evening';
+  return 'Good Night';
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 const BANNER_H = 200;
 const BANNER_W = W - 32;
@@ -143,6 +152,7 @@ export function HomeScreen({ navigation }: Props) {
   const [animating, setAnimating] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [nickname, setNickname] = useState('');
+  const [greeting, setGreeting] = useState(getTimeGreeting());
   const [slides, setSlides] = useState<HomeSlide[]>([]);
   const [worldRanking, setWorldRanking] = useState<HomeWorldRank[]>([]);
   const [weeklyRanking, setWeeklyRanking] = useState<HomeWeeklyRank[]>([]);
@@ -155,6 +165,13 @@ export function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setGreeting(getTimeGreeting());
+    }, 60 * 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useFocusEffect(useCallback(() => {
@@ -233,7 +250,7 @@ export function HomeScreen({ navigation }: Props) {
         {/* Top bar */}
         <View style={s.topBar}>
           <View>
-            <Text style={s.greeting}>Good Morning</Text>
+            <Text style={s.greeting}>{greeting}</Text>
             <Text style={s.title}>{nickname}의 도전 🔥</Text>
           </View>
           <TouchableOpacity style={s.menuBtn}>
@@ -449,6 +466,7 @@ export function HomeScreen({ navigation }: Props) {
             <SectionHeader
               icon={<Trophy size={16} color="#fb923c" strokeWidth={2.5} />}
               title="이번 주 랭킹"
+              onMore={() => navigation.navigate('ActivityRankingDetail')}
             />
             {weeklyRanking.length === 0 ? (
               <View style={s.placeholderCard}>
