@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Easing, Dimensions, StatusBar, Image,
@@ -13,6 +14,8 @@ import { ScreenBackground } from '../components/ScreenBackground';
 import { BottomNav } from '../components/BottomNav';
 import { SectionHeader } from '../components/SectionHeader';
 import { getMyProfile } from '../services/UserService';
+import { getTodayRoutine, TodayRoutineResponse } from '../services/RoutineService';
+import { RoutineDetailModal } from './RoutineDetailModal';
 
 const { width: W } = Dimensions.get('window');
 
@@ -22,10 +25,58 @@ const SLIDES = [
   { src: 'https://i.imgur.com/Zl9DFkK.jpeg', name: '라이벌 하준', quote: '너 요즘 늘었던데… 긴장되기 시작했어.' },
 ];
 
-const QUESTS = [
-  { emoji: '🏃', title: '3km 러닝', sub: '25분 이내', exp: 30, colors: ['#f472b6', '#fb7185'] as [string, string] },
-  { emoji: '💪', title: '스쿼트 50개', sub: '3세트', exp: 20, colors: ['#38bdf8', '#60a5fa'] as [string, string] },
+const ROUTINE_COLORS: [string, string][] = [
+  ['#f472b6', '#fb7185'],
+  ['#38bdf8', '#60a5fa'],
+  ['#a78bfa', '#818cf8'],
+  ['#34d399', '#10b981'],
 ];
+
+function routineEmoji(sessionType?: string | null): string {
+  if (sessionType === 'cardio') return '🏃';
+  if (sessionType === 'upper_body') return '💪';
+  if (sessionType === 'lower_body') return '🦵';
+  if (sessionType === 'core_recovery' || sessionType === 'recovery') return '🧘';
+  if (sessionType === 'full_body') return '🏋️';
+  return '✨';
+}
+
+function todayRoutineTitle(todayRoutine: TodayRoutineResponse): string {
+  if (!todayRoutine.activeRoutineExists) return '루틴 설정 필요';
+  if (!todayRoutine.routineScheduledToday) return '오늘은 쉬는 날';
+  return todayRoutine.session?.sessionName ?? todayRoutine.routine?.name ?? '오늘의 루틴';
+}
+
+function todayRoutineSubtitle(todayRoutine: TodayRoutineResponse): string {
+  if (!todayRoutine.activeRoutineExists) return '루틴을 설정하면 오늘 할 운동을 보여드려요.';
+  if (!todayRoutine.routineScheduledToday) return `${todayRoutine.dayOfWeekDisplayName}은 예정된 운동이 없습니다.`;
+
+  const routineName = todayRoutine.routine?.name;
+  const count = todayRoutine.session?.items.length ?? 0;
+  const minutes = todayRoutine.session?.estimatedMinutes ?? todayRoutine.routine?.estimatedMinutes;
+
+  if (routineName && minutes) return `${routineName} · ${count}개 운동 · ${minutes}분`;
+  if (routineName) return `${routineName} · ${count}개 운동`;
+  return `${count}개 운동`;
+}
+
+function todayRoutineBadge(todayRoutine: TodayRoutineResponse): string {
+  if (!todayRoutine.activeRoutineExists) return '설정 필요';
+  if (!todayRoutine.routineScheduledToday) return '휴식';
+
+  const minutes = todayRoutine.session?.estimatedMinutes ?? todayRoutine.routine?.estimatedMinutes;
+  if (minutes) return `${minutes}분`;
+  const count = todayRoutine.session?.items.length ?? 0;
+  return `${count}개`;
+}
+
+function isTodayRoutineIdle(todayRoutine: TodayRoutineResponse): boolean {
+  return !todayRoutine.activeRoutineExists || !todayRoutine.routineScheduledToday;
+}
+
+function todayRoutineWorkoutCount(todayRoutine: TodayRoutineResponse): number {
+  return todayRoutine.session?.items.length ?? 0;
+}
 
 const RANKING = [
   { rank: 1, name: '하준', score: 1240, medal: '🥇', isMe: false },
@@ -49,12 +100,31 @@ export function HomeScreen({ navigation }: Props) {
   const [animating, setAnimating] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [nickname, setNickname] = useState('');
+  const [todayRoutine, setTodayRoutine] = useState<TodayRoutineResponse | null>(null);
+  const [todayRoutineLoading, setTodayRoutineLoading] = useState(false);
+  const [routineModalVisible, setRoutineModalVisible] = useState(false);
 
   const nextIndex = (slide + 1) % SLIDES.length;
 
   useEffect(() => {
     getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadTodayRoutine();
+  }, []));
+
+  async function loadTodayRoutine() {
+    setTodayRoutineLoading(true);
+    try {
+      const routine = await getTodayRoutine();
+      setTodayRoutine(routine);
+    } catch {
+      setTodayRoutine(null);
+    } finally {
+      setTodayRoutineLoading(false);
+    }
+  }
 
   useEffect(() => {
     const timer = setInterval(goNext, 3000);
@@ -210,33 +280,52 @@ export function HomeScreen({ navigation }: Props) {
             </View>
           </View>
 
-          {/* Today's quests */}
+          {/* Today's routine */}
           <View style={s.section}>
             <SectionHeader
               icon={<Zap size={16} color="#facc15" strokeWidth={2.5} />}
-              title="오늘의 퀘스트"
+              title="오늘의 루틴"
             />
-            {QUESTS.map(q => (
-              <View key={q.title} style={s.questCard}>
-                <LinearGradient colors={q.colors} style={s.questIcon}>
-                  <Text style={{ fontSize: 20 }}>{q.emoji}</Text>
+            {todayRoutineLoading ? (
+              <View style={s.routineCard}>
+                <Text style={s.routineSub}>오늘의 루틴 불러오는 중...</Text>
+              </View>
+            ) : todayRoutine ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setRoutineModalVisible(true)}
+                style={[s.routineCard, isTodayRoutineIdle(todayRoutine) && s.routineCardIdle]}
+              >
+                <LinearGradient colors={ROUTINE_COLORS[0]} style={s.routineIcon}>
+                  <Text style={{ fontSize: 20 }}>{routineEmoji(todayRoutine.session?.sessionType)}</Text>
                 </LinearGradient>
-                <View style={s.questInfo}>
-                  <Text style={s.questTitle}>{q.title}</Text>
-                  <Text style={s.questSub}>{q.sub}</Text>
+                <View style={s.routineInfo}>
+                  <Text style={s.routineTitle}>{todayRoutineTitle(todayRoutine)}</Text>
+                  <Text style={s.routineSub}>{todayRoutineSubtitle(todayRoutine)}</Text>
                 </View>
-                <View style={s.questRight}>
-                  <View style={s.expBadge}>
-                    <Text style={s.expTxt}>+{q.exp} EXP ⭐</Text>
+                <View style={s.routineRight}>
+                  <View style={s.routineMetaBadge}>
+                    <Text style={s.routineMetaTxt}>{todayRoutineBadge(todayRoutine)}</Text>
                   </View>
-                  <TouchableOpacity>
-                    <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.startQuestBtn}>
-                      <Text style={s.startQuestTxt}>시작</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                  {isTodayRoutineIdle(todayRoutine) ? (
+                    <View style={s.routineIdleBadge}>
+                      <Text style={s.routineIdleTxt}>{todayRoutine.activeRoutineExists ? '휴식' : '미설정'}</Text>
+                    </View>
+                  ) : (
+                    <View style={s.routineReadyBadge}>
+                      <Text style={s.routineReadyTxt}>{todayRoutineWorkoutCount(todayRoutine)}개 운동</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={s.routineCard}>
+                <View style={s.routineInfo}>
+                  <Text style={s.routineTitle}>오늘의 루틴 없음</Text>
+                  <Text style={s.routineSub}>루틴 정보를 불러오지 못했습니다.</Text>
                 </View>
               </View>
-            ))}
+            )}
           </View>
 
           {/* Weekly ranking */}
@@ -267,6 +356,12 @@ export function HomeScreen({ navigation }: Props) {
 
         <BottomNav active="home" navigation={navigation} />
       </SafeAreaView>
+
+      <RoutineDetailModal
+        visible={routineModalVisible}
+        routine={todayRoutine}
+        onClose={() => setRoutineModalVisible(false)}
+      />
     </ScreenBackground>
   );
 }
@@ -321,18 +416,20 @@ const s = StyleSheet.create({
   listScore: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   listScoreTxt: { fontSize: 12, fontWeight: '900', color: '#374151' },
 
-  /* Quest */
-  questCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  questIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  questInfo: { flex: 1 },
-  questTitle: { fontSize: 14, fontWeight: '900', color: '#111827' },
-  questSub: { fontSize: 11, color: '#9ca3af', fontWeight: '600' },
-  questRight: { alignItems: 'flex-end', gap: 4 },
-  expBadge: { backgroundColor: '#fefce8', borderWidth: 1, borderColor: '#fde047', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
-  expTxt: { fontSize: 11, fontWeight: '900', color: '#ca8a04' },
-  startQuestBtn: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
-  startQuestTxt: { fontSize: 10, fontWeight: '700', color: '#fff' },
-
+  /* Routine */
+  routineCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  routineIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  routineInfo: { flex: 1 },
+  routineTitle: { fontSize: 14, fontWeight: '900', color: '#111827' },
+  routineSub: { fontSize: 11, color: '#9ca3af', fontWeight: '600' },
+  routineRight: { alignItems: 'flex-end', gap: 4 },
+  routineMetaBadge: { backgroundColor: '#fefce8', borderWidth: 1, borderColor: '#fde047', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  routineMetaTxt: { fontSize: 11, fontWeight: '900', color: '#ca8a04' },
+  routineCardIdle: { opacity: 0.65 },
+  routineIdleBadge: { backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#86efac', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
+  routineIdleTxt: { fontSize: 10, fontWeight: '900', color: '#16a34a' },
+  routineReadyBadge: { backgroundColor: '#e0f2fe', borderWidth: 1, borderColor: '#7dd3fc', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
+  routineReadyTxt: { fontSize: 10, fontWeight: '900', color: '#0284c7' },
   /* Weekly rank */
   rankRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   rankRowMe: { backgroundColor: '#fdf2f8' },

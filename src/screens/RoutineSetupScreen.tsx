@@ -19,7 +19,7 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoutineSetup'>;
 
-type View = 'choice' | 'recommendations';
+type RoutineSetupView = 'choice' | 'recommendations';
 
 const DIFFICULTY_LABEL: Record<string, string> = {
   beginner: '초급',
@@ -37,7 +37,7 @@ const GOAL_LABEL: Record<string, string> = {
 
 export function RoutineSetupScreen({ navigation, route }: Props) {
   const { todayConditionCompleted } = route.params;
-  const [view, setView] = useState<View>('choice');
+  const [view, setView] = useState<RoutineSetupView>('choice');
   const [recommendations, setRecommendations] = useState<RoutineRecommendationResponse[]>([]);
   const [loadingRec, setLoadingRec] = useState(false);
   const [activatingId, setActivatingId] = useState<number | null>(null);

@@ -88,6 +88,28 @@ export async function getExercises(params?: {
   return response.data.data;
 }
 
+// GET /api/users/me/exercises/favorites
+export async function getFavoriteExercises(params?: {
+  category?: string;
+  level?: string;
+  keyword?: string;
+  page?: number;
+  size?: number;
+}): Promise<ExerciseListResponse> {
+  const query: Record<string, string | number> = {};
+  if (params?.category && params.category !== '?꾩껜' && params.category !== 'all') query.category = params.category;
+  if (params?.level    && params.level    !== '?꾩껜' && params.level    !== 'all') query.level    = params.level;
+  if (params?.keyword  && params.keyword.trim()) query.keyword = params.keyword.trim();
+  if (params?.page != null) query.page = params.page;
+  if (params?.size != null) query.size = params.size;
+
+  const response = await axios.get<{ data: ExerciseListResponse }>(
+    `${USERS_URL}/me/exercises/favorites`,
+    { headers: authHeader(), params: query },
+  );
+  return response.data.data;
+}
+
 // GET /api/exercises/{id}
 export async function getExerciseById(id: number): Promise<ExerciseDetail> {
   const response = await axios.get<{ data: ExerciseDetail }>(

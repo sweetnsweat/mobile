@@ -23,8 +23,8 @@ export type RootStackParamList = {
   Condition: undefined;
   Statistics: undefined;
   Push: undefined;
-  CharacterQuest: undefined;
-  CharacterQuest2: undefined;
+  CharacterQuest: { scenario_id?: number };
+  CharacterQuest2: { scenario_id?: number; choices?: { id: number; text: string }[] };
   Exercise: undefined;
   ExerciseDetail: { exercise: ExerciseDetailParams };
   CharacterSelect: undefined;
