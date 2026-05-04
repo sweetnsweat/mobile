@@ -17,7 +17,7 @@ export type RootStackParamList = {
   EmojiMapHero: undefined;
   Auth: undefined;
   Onboarding: undefined;
-  RoutineSetup: { todayConditionCompleted: boolean };
+  RoutineSetup: { todayConditionCompleted: boolean; hideSkip?: boolean };
   RoutineCreate: undefined;
   Home: undefined;
   Condition: undefined;

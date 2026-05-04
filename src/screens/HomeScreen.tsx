@@ -290,6 +290,25 @@ export function HomeScreen({ navigation }: Props) {
               <View style={s.routineCard}>
                 <Text style={s.routineSub}>오늘의 루틴 불러오는 중...</Text>
               </View>
+            ) : todayRoutine && !todayRoutine.activeRoutineExists ? (
+              <View style={s.routineCard}>
+                <LinearGradient colors={ROUTINE_COLORS[0]} style={s.routineIcon}>
+                  <Text style={{ fontSize: 20 }}>✨</Text>
+                </LinearGradient>
+                <View style={s.routineInfo}>
+                  <Text style={s.routineTitle}>루틴 설정 필요</Text>
+                  <Text style={s.routineSub}>루틴을 설정하면 오늘 할 운동을 보여드려요.</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('RoutineSetup', { todayConditionCompleted: true, hideSkip: true })}
+                  style={s.createRoutineBtn}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient colors={['#ec4899', '#f472b6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.createRoutineGrad}>
+                    <Text style={s.createRoutineTxt}>루틴 생성</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             ) : todayRoutine ? (
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -309,7 +328,7 @@ export function HomeScreen({ navigation }: Props) {
                   </View>
                   {isTodayRoutineIdle(todayRoutine) ? (
                     <View style={s.routineIdleBadge}>
-                      <Text style={s.routineIdleTxt}>{todayRoutine.activeRoutineExists ? '휴식' : '미설정'}</Text>
+                      <Text style={s.routineIdleTxt}>휴식</Text>
                     </View>
                   ) : (
                     <View style={s.routineReadyBadge}>
@@ -426,6 +445,9 @@ const s = StyleSheet.create({
   routineMetaBadge: { backgroundColor: '#fefce8', borderWidth: 1, borderColor: '#fde047', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
   routineMetaTxt: { fontSize: 11, fontWeight: '900', color: '#ca8a04' },
   routineCardIdle: { opacity: 0.65 },
+  createRoutineBtn: { borderRadius: 10, overflow: 'hidden' },
+  createRoutineGrad: { paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  createRoutineTxt: { fontSize: 11, fontWeight: '700', color: '#fff' },
   routineIdleBadge: { backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#86efac', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
   routineIdleTxt: { fontSize: 10, fontWeight: '900', color: '#16a34a' },
   routineReadyBadge: { backgroundColor: '#e0f2fe', borderWidth: 1, borderColor: '#7dd3fc', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },

@@ -36,7 +36,7 @@ const GOAL_LABEL: Record<string, string> = {
 };
 
 export function RoutineSetupScreen({ navigation, route }: Props) {
-  const { todayConditionCompleted } = route.params;
+  const { todayConditionCompleted, hideSkip = false } = route.params;
   const [view, setView] = useState<RoutineSetupView>('choice');
   const [recommendations, setRecommendations] = useState<RoutineRecommendationResponse[]>([]);
   const [loadingRec, setLoadingRec] = useState(false);
@@ -106,6 +106,7 @@ export function RoutineSetupScreen({ navigation, route }: Props) {
               onRecommendations={handleRecommendations}
               onCustom={() => navigation.navigate('Exercise')}
               onSkip={navigateAfterSetup}
+              hideSkip={hideSkip}
             />
           ) : (
             <RecommendationsView
@@ -129,11 +130,13 @@ function ChoiceView({
   onRecommendations,
   onCustom,
   onSkip,
+  hideSkip,
 }: {
   loadingRec: boolean;
   onRecommendations: () => void;
   onCustom: () => void;
   onSkip: () => void;
+  hideSkip: boolean;
 }) {
   return (
     <View style={s.card}>
@@ -167,21 +170,24 @@ function ChoiceView({
         </LinearGradient>
       </TouchableOpacity>
 
-      {/* 나중에 */}
-      <TouchableOpacity activeOpacity={0.85} onPress={onSkip} style={s.optionBtn}>
-        <View style={s.optionGradGray}>
-          <View style={[s.optionIcon, { backgroundColor: '#e5e7eb' }]}>
-            <Clock size={24} color="#6b7280" strokeWidth={2} />
+      {!hideSkip && (
+        <TouchableOpacity activeOpacity={0.85} onPress={onSkip} style={s.optionBtn}>
+          <View style={s.optionGradGray}>
+            <View style={[s.optionIcon, { backgroundColor: '#e5e7eb' }]}>
+              <Clock size={24} color="#6b7280" strokeWidth={2} />
+            </View>
+            <View style={s.optionText}>
+              <Text style={[s.optionTitle, { color: '#374151' }]}>나중에 할게요</Text>
+              <Text style={[s.optionDesc, { color: '#9ca3af' }]}>루틴 없이도 홈에 들어갈 수 있어요</Text>
+            </View>
+            <ChevronRight size={20} color="#9ca3af" strokeWidth={2.5} />
           </View>
-          <View style={s.optionText}>
-            <Text style={[s.optionTitle, { color: '#374151' }]}>나중에 할게요</Text>
-            <Text style={[s.optionDesc, { color: '#9ca3af' }]}>루틴 없이도 홈에 들어갈 수 있어요</Text>
-          </View>
-          <ChevronRight size={20} color="#9ca3af" strokeWidth={2.5} />
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      )}
 
-      <Text style={s.hint}>※ 루틴이 없으면 퀘스트 생성 시 안내가 표시될 수 있어요</Text>
+      {!hideSkip && (
+        <Text style={s.hint}>※ 루틴이 없으면 퀘스트 생성 시 안내가 표시될 수 있어요</Text>
+      )}
     </View>
   );
 }
