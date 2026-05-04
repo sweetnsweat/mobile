@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Easing, Dimensions, StatusBar, Image,
@@ -13,6 +14,8 @@ import { ScreenBackground } from '../components/ScreenBackground';
 import { BottomNav } from '../components/BottomNav';
 import { SectionHeader } from '../components/SectionHeader';
 import { getMyProfile } from '../services/UserService';
+import { getTodayQuest, QuestResponse } from '../services/QuestService';
+import { QuestDetailModal } from './QuestDetailScreen';
 
 const { width: W } = Dimensions.get('window');
 
@@ -22,10 +25,32 @@ const SLIDES = [
   { src: 'https://i.imgur.com/Zl9DFkK.jpeg', name: '라이벌 하준', quote: '너 요즘 늘었던데… 긴장되기 시작했어.' },
 ];
 
-const QUESTS = [
-  { emoji: '🏃', title: '3km 러닝', sub: '25분 이내', exp: 30, colors: ['#f472b6', '#fb7185'] as [string, string] },
-  { emoji: '💪', title: '스쿼트 50개', sub: '3세트', exp: 20, colors: ['#38bdf8', '#60a5fa'] as [string, string] },
+const QUEST_COLORS: [string, string][] = [
+  ['#f472b6', '#fb7185'],
+  ['#38bdf8', '#60a5fa'],
+  ['#a78bfa', '#818cf8'],
+  ['#34d399', '#10b981'],
 ];
+
+function questEmoji(sessionType: string | null, questType: string): string {
+  if (sessionType === 'cardio' || questType === 'CARDIO') return '🏃';
+  if (sessionType === 'upper_body') return '💪';
+  if (sessionType === 'lower_body') return '🦵';
+  if (sessionType === 'core_recovery' || sessionType === 'recovery') return '🧘';
+  if (sessionType === 'full_body') return '🔥';
+  if (questType === 'REST') return '😴';
+  return '⚡';
+}
+
+function questSubtitle(quest: QuestResponse): string {
+  if (quest.targetMetric === 'REPS' && quest.targetValue) return `${quest.targetValue}회`;
+  if (quest.targetMetric === 'SETS' && quest.targetValue) return `${quest.targetValue}세트`;
+  if (quest.targetMetric === 'DURATION_SEC' && quest.targetValue) {
+    const mins = Math.round(quest.targetValue / 60);
+    return `${mins}분`;
+  }
+  return quest.sessionName ?? '';
+}
 
 const RANKING = [
   { rank: 1, name: '하준', score: 1240, medal: '🥇', isMe: false },
@@ -49,12 +74,32 @@ export function HomeScreen({ navigation }: Props) {
   const [animating, setAnimating] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [nickname, setNickname] = useState('');
+  const [quest, setQuest] = useState<QuestResponse | null>(null);
+  const [questLoading, setQuestLoading] = useState(false);
+  const [questModalVisible, setQuestModalVisible] = useState(false);
 
   const nextIndex = (slide + 1) % SLIDES.length;
 
   useEffect(() => {
     getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadQuest();
+  }, []));
+
+  async function loadQuest() {
+    setQuestLoading(true);
+    try {
+      const q = await getTodayQuest();
+      setQuest(q);
+    } catch {
+      // no active routine or network error — keep null
+    } finally {
+      setQuestLoading(false);
+    }
+  }
+
 
   useEffect(() => {
     const timer = setInterval(goNext, 3000);
@@ -210,33 +255,52 @@ export function HomeScreen({ navigation }: Props) {
             </View>
           </View>
 
-          {/* Today's quests */}
+          {/* Today's quest */}
           <View style={s.section}>
             <SectionHeader
               icon={<Zap size={16} color="#facc15" strokeWidth={2.5} />}
               title="오늘의 퀘스트"
             />
-            {QUESTS.map(q => (
-              <View key={q.title} style={s.questCard}>
-                <LinearGradient colors={q.colors} style={s.questIcon}>
-                  <Text style={{ fontSize: 20 }}>{q.emoji}</Text>
+            {questLoading ? (
+              <View style={s.questCard}>
+                <Text style={s.questSub}>퀘스트 불러오는 중...</Text>
+              </View>
+            ) : quest ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setQuestModalVisible(true)}
+                style={[s.questCard, quest.completed && s.questCardDone]}
+              >
+                <LinearGradient colors={QUEST_COLORS[0]} style={s.questIcon}>
+                  <Text style={{ fontSize: 20 }}>{questEmoji(quest.sessionType, quest.questType)}</Text>
                 </LinearGradient>
                 <View style={s.questInfo}>
-                  <Text style={s.questTitle}>{q.title}</Text>
-                  <Text style={s.questSub}>{q.sub}</Text>
+                  <Text style={s.questTitle}>{quest.title}</Text>
+                  <Text style={s.questSub}>{questSubtitle(quest)}</Text>
                 </View>
                 <View style={s.questRight}>
                   <View style={s.expBadge}>
-                    <Text style={s.expTxt}>+{q.exp} EXP ⭐</Text>
+                    <Text style={s.expTxt}>+{quest.rewardExp} EXP ⭐</Text>
                   </View>
-                  <TouchableOpacity>
-                    <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.startQuestBtn}>
-                      <Text style={s.startQuestTxt}>시작</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                  {quest.completed ? (
+                    <View style={s.questDoneBadge}>
+                      <Text style={s.questDoneTxt}>완료 ✓</Text>
+                    </View>
+                  ) : (
+                    <View style={s.questArrow}>
+                      <Text style={s.questArrowTxt}>›</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={s.questCard}>
+                <View style={s.questInfo}>
+                  <Text style={s.questTitle}>퀘스트 없음</Text>
+                  <Text style={s.questSub}>루틴을 설정하면 오늘의 퀘스트가 생성됩니다.</Text>
                 </View>
               </View>
-            ))}
+            )}
           </View>
 
           {/* Weekly ranking */}
@@ -267,6 +331,12 @@ export function HomeScreen({ navigation }: Props) {
 
         <BottomNav active="home" navigation={navigation} />
       </SafeAreaView>
+
+      <QuestDetailModal
+        visible={questModalVisible}
+        onClose={() => setQuestModalVisible(false)}
+        onCompleted={(updated) => setQuest(updated)}
+      />
     </ScreenBackground>
   );
 }
@@ -332,6 +402,11 @@ const s = StyleSheet.create({
   expTxt: { fontSize: 11, fontWeight: '900', color: '#ca8a04' },
   startQuestBtn: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
   startQuestTxt: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  questCardDone: { opacity: 0.65 },
+  questDoneBadge: { backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#86efac', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
+  questDoneTxt: { fontSize: 10, fontWeight: '900', color: '#16a34a' },
+  questArrow: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  questArrowTxt: { fontSize: 22, color: '#d1d5db', fontWeight: '300', lineHeight: 24 },
 
   /* Weekly rank */
   rankRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
