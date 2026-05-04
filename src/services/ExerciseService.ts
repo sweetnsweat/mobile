@@ -9,6 +9,18 @@ export interface ExerciseCategory {
   categoryDisplayName: string;
 }
 
+export interface ExerciseCategoryListResponse {
+  page: number;
+  size: number;
+  totalCount: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+  hasNext: boolean;
+  nextPage: number | null;
+  categories: ExerciseCategory[];
+}
+
 export interface ExerciseListItem {
   id: number;
   name: string;
@@ -34,10 +46,17 @@ export interface ExerciseCategoryGroup {
 
 export interface ExerciseListResponse {
   scope: string;
+  category: string | null;
+  level: string | null;
+  keyword: string | null;
+  page: number;
+  size: number;
   totalCount: number;
   totalPages: number;
   first: boolean;
   last: boolean;
+  hasNext: boolean;
+  nextPage: number | null;
   groups: ExerciseCategoryGroup[];
 }
 
@@ -56,10 +75,17 @@ function authHeader(): Record<string, string> {
 }
 
 // GET /api/exercises/categories
-export async function getExerciseCategories(): Promise<ExerciseCategory[]> {
-  const response = await axios.get<{ data: ExerciseCategory[] }>(
+export async function getExerciseCategories(params?: {
+  page?: number;
+  size?: number;
+}): Promise<ExerciseCategoryListResponse> {
+  const query: Record<string, number> = {};
+  if (params?.page != null) query.page = params.page;
+  if (params?.size != null) query.size = params.size;
+
+  const response = await axios.get<{ data: ExerciseCategoryListResponse }>(
     `${BASE_URL}/categories`,
-    { headers: authHeader() },
+    { headers: authHeader(), params: query },
   );
   return response.data.data;
 }

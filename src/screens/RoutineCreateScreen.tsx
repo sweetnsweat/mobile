@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, StatusBar, Alert, ActivityIndicator,
@@ -44,6 +44,13 @@ const SESSION_TYPES = [
   { value: 'mobility',         label: '가동성' },
 ];
 
+const FAVORITE_PAGE_SIZE = 30;
+
+function mergeFavoriteExercises(prev: ExerciseListItem[], next: ExerciseListItem[]): ExerciseListItem[] {
+  const seen = new Set(prev.map(ex => ex.id));
+  return [...prev, ...next.filter(ex => !seen.has(ex.id))];
+}
+
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 
 type ExerciseDraft = {
@@ -88,18 +95,60 @@ export function RoutineCreateScreen({ navigation }: Props) {
 
   const [favorites, setFavorites]         = useState<ExerciseListItem[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(true);
+  const [favoritesLoadingMore, setFavoritesLoadingMore] = useState(false);
+  const [favoritesHasNext, setFavoritesHasNext] = useState(false);
+  const [favoritesNextPage, setFavoritesNextPage] = useState<number | null>(null);
+  const favoriteRequestingRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
-    getFavoriteExercises({ size: 100 })
-      .then(data => {
-        if (!mounted) return;
-        setFavorites((data?.groups ?? []).flatMap(g => g.exercises ?? []));
-      })
-      .catch(() => { if (mounted) setFavorites([]); })
-      .finally(() => { if (mounted) setFavoritesLoading(false); });
+    loadFavoriteExercisesPage(0, false, () => mounted);
     return () => { mounted = false; };
   }, []);
+
+  async function loadFavoriteExercisesPage(page = 0, append = false, isMounted = () => true) {
+    if (favoriteRequestingRef.current) return;
+    favoriteRequestingRef.current = true;
+
+    if (append) {
+      setFavoritesLoadingMore(true);
+    } else {
+      setFavoritesLoading(true);
+    }
+
+    getFavoriteExercises({ page, size: FAVORITE_PAGE_SIZE })
+      .then(data => {
+        if (!isMounted()) return;
+        const items = (data?.groups ?? []).flatMap(g => g.exercises ?? []);
+        setFavorites(prev => append ? mergeFavoriteExercises(prev, items) : items);
+        setFavoritesHasNext(data.hasNext);
+        setFavoritesNextPage(data.nextPage);
+      })
+      .catch(() => {
+        if (!isMounted()) return;
+        if (!append) setFavorites([]);
+        setFavoritesHasNext(false);
+        setFavoritesNextPage(null);
+      })
+      .finally(() => {
+        favoriteRequestingRef.current = false;
+        if (!isMounted()) return;
+        setFavoritesLoading(false);
+        setFavoritesLoadingMore(false);
+      });
+  }
+
+  function loadMoreFavoriteExercises() {
+    if (favoritesLoading || favoritesLoadingMore || !favoritesHasNext || favoritesNextPage == null) return;
+    loadFavoriteExercisesPage(favoritesNextPage, true);
+  }
+
+  function handleScroll(e: any) {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 80) {
+      loadMoreFavoriteExercises();
+    }
+  }
 
   // ── 세션 조작 ──────────────────────────────────────────────────────────────
 
@@ -215,7 +264,14 @@ export function RoutineCreateScreen({ navigation }: Props) {
           <View style={{ width: 32 }} />
         </LinearGradient>
 
-        <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+        >
 
           {/* 루틴 이름 */}
           <View style={s.card}>
@@ -239,6 +295,7 @@ export function RoutineCreateScreen({ navigation }: Props) {
               canRemove={sessions.length > 1}
               favorites={favorites}
               favoritesLoading={favoritesLoading}
+              favoritesLoadingMore={favoritesLoadingMore}
               onUpdate={patch => updateSession(session.key, patch)}
               onRemove={() => removeSession(session.key)}
               onUpdateExercise={(ek, patch) => updateExercise(session.key, ek, patch)}
@@ -279,6 +336,7 @@ type SessionCardProps = {
   canRemove: boolean;
   favorites: ExerciseListItem[];
   favoritesLoading: boolean;
+  favoritesLoadingMore: boolean;
   onUpdate: (patch: Partial<SessionDraft>) => void;
   onRemove: () => void;
   onUpdateExercise: (key: string, patch: Partial<ExerciseDraft>) => void;
@@ -288,7 +346,7 @@ type SessionCardProps = {
 
 function SessionCard({
   session, index, canRemove,
-  favorites, favoritesLoading,
+  favorites, favoritesLoading, favoritesLoadingMore,
   onUpdate, onRemove,
   onUpdateExercise, onRemoveExercise, onToggleFavorite,
 }: SessionCardProps) {
@@ -391,6 +449,7 @@ function SessionCard({
               </TouchableOpacity>
             );
           })}
+          {favoritesLoadingMore && <ActivityIndicator color="#ec4899" style={{ marginVertical: 8 }} />}
         </View>
       )}
 

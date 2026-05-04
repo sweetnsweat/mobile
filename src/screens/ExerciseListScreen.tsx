@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, StatusBar, ActivityIndicator,
+  ScrollView, StatusBar, ActivityIndicator, FlatList,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,13 +29,57 @@ const SCOPE_TABS: { key: ScopeTab; label: string }[] = [
 ];
 
 const LEVEL_FILTERS = ['전체', '입문', '초급', '중급', '고급'];
+const CATEGORY_PAGE_SIZE = 30;
+const PAGE_SIZE = 30;
+
+type ExerciseListRow =
+  | { type: 'group'; key: string; title: string }
+  | { type: 'exercise'; key: string; exercise: ExerciseListItem };
+
+function mergeExerciseGroups(prev: ExerciseCategoryGroup[], next: ExerciseCategoryGroup[]): ExerciseCategoryGroup[] {
+  const map = new Map<string, ExerciseCategoryGroup>();
+
+  [...prev, ...next].forEach(group => {
+    const existing = map.get(group.category);
+    if (!existing) {
+      map.set(group.category, { ...group, exercises: [...group.exercises] });
+      return;
+    }
+
+    const seen = new Set(existing.exercises.map(ex => ex.id));
+    const newExercises = group.exercises.filter(ex => !seen.has(ex.id));
+    existing.exercises = [...existing.exercises, ...newExercises];
+    existing.count = existing.exercises.length;
+  });
+
+  return Array.from(map.values());
+}
+
+function flattenExerciseGroups(groups: ExerciseCategoryGroup[]): ExerciseListRow[] {
+  return groups.flatMap(group => [
+    { type: 'group' as const, key: `group-${group.category}`, title: group.categoryDisplayName },
+    ...group.exercises.map(ex => ({ type: 'exercise' as const, key: `exercise-${ex.id}`, exercise: ex })),
+  ]);
+}
+
+function mergeCategories(prev: ExerciseCategory[], next: ExerciseCategory[]): ExerciseCategory[] {
+  const seen = new Set(prev.map(c => c.category));
+  return [...prev, ...next.filter(c => !seen.has(c.category))];
+}
 
 export function ExerciseListScreen({ navigation }: Props) {
   const [categories,     setCategories]     = useState<ExerciseCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesLoadingMore, setCategoriesLoadingMore] = useState(false);
+  const [categoriesHasNext, setCategoriesHasNext] = useState(false);
+  const [categoriesNextPage, setCategoriesNextPage] = useState<number | null>(null);
   const [groups,         setGroups]         = useState<ExerciseCategoryGroup[]>([]);
   const [totalCount,     setTotalCount]     = useState(0);
   const [loading,        setLoading]        = useState(true);
+  const [loadingMore,    setLoadingMore]    = useState(false);
   const [error,          setError]          = useState('');
+  const [hasNext,        setHasNext]        = useState(false);
+  const [nextPage,       setNextPage]       = useState<number | null>(null);
 
   const [scope,          setScope]          = useState<ScopeTab>('all');
   const [categoryFilter, setCategoryFilter] = useState('전체');
@@ -43,17 +87,67 @@ export function ExerciseListScreen({ navigation }: Props) {
   const [searchQuery,    setSearchQuery]    = useState('');
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestSeq = useRef(0);
+  const categoryRequestingRef = useRef(false);
 
   // 카테고리 목록 로드
   useEffect(() => {
-    getExerciseCategories()
-      .then(setCategories)
-      .catch(() => {}); // 카테고리 실패해도 필터 없이 진행
+    let mounted = true;
+    loadCategoriesPage(0, false, () => mounted);
+    return () => { mounted = false; };
   }, []);
 
+  async function loadCategoriesPage(page = 0, append = false, isMounted = () => true) {
+    if (categoryRequestingRef.current) return;
+    categoryRequestingRef.current = true;
+
+    if (append) {
+      setCategoriesLoadingMore(true);
+    } else {
+      setCategoriesLoading(true);
+    }
+
+    getExerciseCategories({ page, size: CATEGORY_PAGE_SIZE })
+      .then(data => {
+        if (!isMounted()) return;
+        setCategories(prev => append ? mergeCategories(prev, data.categories) : data.categories);
+        setCategoriesHasNext(data.hasNext);
+        setCategoriesNextPage(data.nextPage);
+      })
+      .catch(() => {
+        if (!isMounted()) return;
+        if (!append) setCategories([]);
+        setCategoriesHasNext(false);
+        setCategoriesNextPage(null);
+      })
+      .finally(() => {
+        categoryRequestingRef.current = false;
+        if (!isMounted()) return;
+        setCategoriesLoading(false);
+        setCategoriesLoadingMore(false);
+      });
+  }
+
+  function loadMoreCategories() {
+    if (categoriesLoading || categoriesLoadingMore || !categoriesHasNext || categoriesNextPage == null) return;
+    loadCategoriesPage(categoriesNextPage, true);
+  }
+
+  function handleCategoryScroll(e: any) {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (layoutMeasurement.width + contentOffset.x >= contentSize.width - 80) {
+      loadMoreCategories();
+    }
+  }
+
   // 운동 목록 로드
-  const loadExercises = useCallback(async (keyword: string) => {
-    setLoading(true);
+  const loadExercises = useCallback(async (keyword: string, page = 0, append = false) => {
+    const seq = ++requestSeq.current;
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     setError('');
     try {
       const data = await getExercises({
@@ -61,30 +155,46 @@ export function ExerciseListScreen({ navigation }: Props) {
         category: categoryFilter !== '전체' ? categoryFilter : undefined,
         level:    levelFilter    !== '전체' ? levelFilter    : undefined,
         keyword:  keyword.trim() || undefined,
-        size: 100,
+        page,
+        size: PAGE_SIZE,
       });
-      setGroups(data.groups);
+      if (seq !== requestSeq.current) return;
+      setGroups(prev => append ? mergeExerciseGroups(prev, data.groups) : data.groups);
       setTotalCount(data.totalCount);
+      setHasNext(data.hasNext);
+      setNextPage(data.nextPage);
     } catch (e: any) {
-      setError(e?.message ?? '운동 목록을 불러오지 못했어요.');
+      if (seq === requestSeq.current) {
+        setError(e?.message ?? '운동 목록을 불러오지 못했어요.');
+      }
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [scope, categoryFilter, levelFilter]);
 
   // scope/category/level 변경 시 즉시 로드
   useEffect(() => {
-    loadExercises(searchQuery);
+    loadExercises(searchQuery, 0, false);
   }, [scope, categoryFilter, levelFilter]);
 
   // 검색어 디바운스 (500ms)
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      loadExercises(searchQuery);
+      loadExercises(searchQuery, 0, false);
     }, 500);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [searchQuery]);
+
+  const listRows = useMemo(() => flattenExerciseGroups(groups), [groups]);
+
+  const loadMoreExercises = useCallback(() => {
+    if (loading || loadingMore || !hasNext || nextPage == null) return;
+    loadExercises(searchQuery, nextPage, true);
+  }, [hasNext, loadExercises, loading, loadingMore, nextPage, searchQuery]);
 
   async function handleToggleLike(item: ExerciseListItem) {
     const newLiked = !item.liked;
@@ -132,6 +242,52 @@ export function ExerciseListScreen({ navigation }: Props) {
     ...categories,
   ];
 
+  function renderListRow({ item }: { item: ExerciseListRow }) {
+    if (item.type === 'group') {
+      return <Text style={s.groupTitle}>{item.title}</Text>;
+    }
+
+    const ex = item.exercise;
+    return (
+      <TouchableOpacity
+        onPress={() => goToDetail(ex)}
+        activeOpacity={0.75}
+        style={[s.exerciseRow, s.exerciseBorder]}
+      >
+        <LinearGradient
+          colors={CATEGORY_COLORS[ex.categoryDisplayName] ?? ['#f3f4f6', '#e5e7eb']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={s.exerciseIcon}
+        >
+          <Text style={s.exerciseEmoji}>{ex.emoji}</Text>
+        </LinearGradient>
+        <View style={s.exerciseInfo}>
+          <Text style={s.exerciseName}>{ex.name}</Text>
+          <View style={s.tagRow}>
+            <View style={s.tag}><Text style={s.tagTxt}>{ex.levelDisplayName}</Text></View>
+            {ex.primaryMuscles.slice(0, 1).map(m => (
+              <View key={m} style={s.tag}><Text style={s.tagTxt}>{m}</Text></View>
+            ))}
+            {ex.estimatedKcalPerHour > 0 && (
+              <Text style={s.kcalTxt}>{ex.estimatedKcalPerHour} kcal/h</Text>
+            )}
+          </View>
+        </View>
+        <TouchableOpacity
+          onPress={() => handleToggleLike(ex)}
+          style={s.likeBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Heart
+            size={19} strokeWidth={1.8}
+            color={ex.liked ? '#ec4899' : '#d1d5db'}
+            fill={ex.liked ? '#ec4899' : 'none'}
+          />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <ScreenBackground>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -172,7 +328,13 @@ export function ExerciseListScreen({ navigation }: Props) {
 
           {/* 종목 */}
           <Text style={s.filterLabel}>종목</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.tabRow}
+            onScroll={handleCategoryScroll}
+            scrollEventThrottle={16}
+          >
             {categoryTabs.map(c => (
               <TouchableOpacity
                 key={c.categoryDisplayName}
@@ -184,6 +346,11 @@ export function ExerciseListScreen({ navigation }: Props) {
                 </Text>
               </TouchableOpacity>
             ))}
+            {(categoriesLoading || categoriesLoadingMore) && (
+              <View style={s.categoryLoading}>
+                <ActivityIndicator size="small" color="#ec4899" />
+              </View>
+            )}
           </ScrollView>
           <View style={s.filterDivider} />
 
@@ -204,70 +371,42 @@ export function ExerciseListScreen({ navigation }: Props) {
         </View>
 
         {/* 목록 */}
-        <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
-          {loading ? (
+        {loading ? (
+          <View style={s.list}>
             <View style={s.centerWrap}>
               <ActivityIndicator size="large" color="#ec4899" />
             </View>
-          ) : error ? (
+          </View>
+        ) : error ? (
+          <View style={s.list}>
             <View style={s.centerWrap}>
               <Text style={s.errorTxt}>{error}</Text>
-              <TouchableOpacity onPress={() => loadExercises(searchQuery)} style={s.retryBtn}>
+              <TouchableOpacity onPress={() => loadExercises(searchQuery, 0, false)} style={s.retryBtn}>
                 <Text style={s.retryTxt}>다시 시도</Text>
               </TouchableOpacity>
             </View>
-          ) : groups.length === 0 ? (
-            <View style={s.centerWrap}>
-              <Text style={s.emptyTxt}>검색 결과가 없어요 😅</Text>
-            </View>
-          ) : (
-            groups.map(group => (
-              <View key={group.category}>
-                <Text style={s.groupTitle}>{group.categoryDisplayName}</Text>
-                {group.exercises.map((ex, idx) => (
-                  <TouchableOpacity
-                    key={ex.id}
-                    onPress={() => goToDetail(ex)}
-                    activeOpacity={0.75}
-                    style={[s.exerciseRow, idx < group.exercises.length - 1 && s.exerciseBorder]}
-                  >
-                    <LinearGradient
-                      colors={CATEGORY_COLORS[ex.categoryDisplayName] ?? ['#f3f4f6', '#e5e7eb']}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                      style={s.exerciseIcon}
-                    >
-                      <Text style={s.exerciseEmoji}>{ex.emoji}</Text>
-                    </LinearGradient>
-                    <View style={s.exerciseInfo}>
-                      <Text style={s.exerciseName}>{ex.name}</Text>
-                      <View style={s.tagRow}>
-                        <View style={s.tag}><Text style={s.tagTxt}>{ex.levelDisplayName}</Text></View>
-                        {ex.primaryMuscles.slice(0, 1).map(m => (
-                          <View key={m} style={s.tag}><Text style={s.tagTxt}>{m}</Text></View>
-                        ))}
-                        {ex.estimatedKcalPerHour > 0 && (
-                          <Text style={s.kcalTxt}>{ex.estimatedKcalPerHour} kcal/h</Text>
-                        )}
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => handleToggleLike(ex)}
-                      style={s.likeBtn}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Heart
-                        size={19} strokeWidth={1.8}
-                        color={ex.liked ? '#ec4899' : '#d1d5db'}
-                        fill={ex.liked ? '#ec4899' : 'none'}
-                      />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ))}
+          </View>
+        ) : (
+          <FlatList
+            data={listRows}
+            keyExtractor={item => item.key}
+            renderItem={renderListRow}
+            style={s.list}
+            showsVerticalScrollIndicator={false}
+            onEndReached={loadMoreExercises}
+            onEndReachedThreshold={0.35}
+            ListEmptyComponent={
+              <View style={s.centerWrap}>
+                <Text style={s.emptyTxt}>검색 결과가 없어요</Text>
               </View>
-            ))
-          )}
-          <View style={{ height: 20 }} />
-        </ScrollView>
+            }
+            ListFooterComponent={
+              <View style={s.listFooter}>
+                {loadingMore && <ActivityIndicator color="#ec4899" />}
+              </View>
+            }
+          />
+        )}
 
         {/* 다음 버튼 */}
         <View style={s.nextWrap}>
@@ -314,11 +453,13 @@ const s = StyleSheet.create({
   tabTxtActive: { fontWeight: '700', color: '#ec4899' },
   tabTxtActiveBlue: { fontWeight: '700', color: '#38bdf8' },
   tabTxtInactive: { fontWeight: '500', color: '#9ca3af' },
+  categoryLoading: { width: 36, alignItems: 'center', justifyContent: 'center' },
 
   countRow: { paddingHorizontal: 20, paddingVertical: 8 },
   countTxt: { color: '#9ca3af', fontSize: 11 },
 
   list: { flex: 1 },
+  listFooter: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   centerWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 40, gap: 12 },
   emptyTxt: { color: '#d1d5db', fontSize: 13 },
   errorTxt: { color: '#ef4444', fontSize: 13, textAlign: 'center', paddingHorizontal: 24 },
