@@ -184,11 +184,6 @@ export function WorldRankingScreen({ navigation }: Props) {
                         </View>
                       )}
                     </View>
-                    {/* Streak */}
-                    <View style={s.cardStreak}>
-                      <Flame size={10} color="#fb923c" strokeWidth={2.5} />
-                      <Text style={s.cardStreakTxt}>{r.streak}일</Text>
-                    </View>
                     {/* Name overlay */}
                     <View style={s.cardNameOverlay}>
                       <Text style={s.cardName} numberOfLines={1}>{r.name}</Text>
