@@ -181,7 +181,7 @@ function ChoiceView({
         </View>
       </TouchableOpacity>
 
-      <Text style={s.hint}>루틴이 없으면 퀘스트 생성 시 안내가 표시될 수 있어요</Text>
+      <Text style={s.hint}>※ 루틴이 없으면 퀘스트 생성 시 안내가 표시될 수 있어요</Text>
     </View>
   );
 }
@@ -272,7 +272,14 @@ function RecommendationsView({
 
 const s = StyleSheet.create({
   safe: { flex: 1 },
-  scroll: { paddingTop: 16, paddingHorizontal: 16, paddingBottom: 32, alignItems: 'center' },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 32,
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+    alignItems: 'center',
+  },
 
   fStar:     { position: 'absolute', top: 80,    left: 16 },
   fDumbbell: { position: 'absolute', bottom: 160, right: 24 },
