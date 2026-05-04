@@ -6,7 +6,7 @@ import { RootStackParamList } from '../types/navigation';
 
 export type NavTab = 'battle' | 'chat' | 'home' | 'record' | 'mypage';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate'>;
 
 const TABS: { key: NavTab; Icon: React.ComponentType<any>; label: string }[] = [
   { key: 'battle', Icon: Swords,        label: '배틀' },
@@ -32,9 +32,11 @@ export function BottomNav({ active, navigation }: Props) {
         opponentImage: 'https://i.imgur.com/ub32dOr.png',
       });
     } else if (key === 'chat') {
-      navigation.navigate('CharacterQuest');
+      navigation.navigate('CharacterQuest', {});
     } else if (key === 'home') {
       navigation.navigate('Home');
+    } else if (key === 'record') {
+      navigation.navigate('Statistics');
     } else if (key === 'mypage') {
       navigation.navigate('Mypage');
     }

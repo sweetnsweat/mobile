@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, StatusBar,
@@ -17,6 +18,7 @@ import { BottomNav } from '../components/BottomNav';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { logout, getStoredAuth, clearStoredAuth } from '../services/AuthService';
 import { getMyProfile } from '../services/UserService';
+import { getWeeklyStats, WeeklyStatsResponse } from '../services/StatsService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
 
@@ -37,14 +39,6 @@ const BADGES = [
   { emoji: '🎯', label: '목표달성', colors: ['#34d399','#2dd4bf'] as [string,string] },
 ];
 
-type StatIcon = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
-
-const STATS: { Icon: StatIcon; label: string; value: string; color: string }[] = [
-  { Icon: Activity,   label: '총 운동',     value: '7회',   color: '#ec4899' },
-  { Icon: Flame,      label: '소모 칼로리', value: '8,340', color: '#fb923c' },
-  { Icon: Calendar,   label: '연속 달성',   value: '7일',   color: '#0ea5e9' },
-  { Icon: TrendingUp, label: '이번 주 EXP', value: '+320',  color: '#10b981' },
-];
 
 type SettingIcon = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
@@ -60,11 +54,16 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
 export function MypageScreen({ navigation }: Props) {
   const [toggles, setToggles] = useState<Record<string, boolean>>({ bell: true, dark: false });
   const [nickname, setNickname] = useState(PROFILE.name);
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
   const expPct = Math.round((PROFILE.exp / PROFILE.expMax) * 100);
 
   React.useEffect(() => {
     getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    getWeeklyStats().then(setWeeklyStats).catch(() => setWeeklyStats(null));
+  }, []));
 
   const handleLogout = async () => {
     const auth = getStoredAuth();
@@ -114,7 +113,7 @@ export function MypageScreen({ navigation }: Props) {
                   <Text style={s.rankTxt}>🏆 랭킹 <Text style={{ color: '#ec4899' }}>#12</Text></Text>
                   <View style={s.streakRow}>
                     <Flame size={14} color="#fb923c" strokeWidth={2.5} />
-                    <Text style={s.streakTxt}>{PROFILE.streak}일</Text>
+                    <Text style={s.streakTxt}>{weeklyStats?.maxStreakDays ?? PROFILE.streak}일</Text>
                   </View>
                 </View>
               </View>
@@ -145,17 +144,42 @@ export function MypageScreen({ navigation }: Props) {
               <Text style={s.sectionTitleTxt}>이번 주 통계</Text>
             </View>
             <View style={s.statsGrid}>
-              {STATS.map(({ Icon, label, value, color }) => (
-                <View key={label} style={s.statCard}>
-                  <View style={s.statIconWrap}>
-                    <Icon size={16} color={color} strokeWidth={2.5} />
-                  </View>
-                  <View>
-                    <Text style={[s.statValue, { color }]}>{value}</Text>
-                    <Text style={s.statLabel}>{label}</Text>
-                  </View>
+              <View style={s.statCard}>
+                <View style={s.statIconWrap}>
+                  <Activity size={16} color="#ec4899" strokeWidth={2.5} />
                 </View>
-              ))}
+                <View>
+                  <Text style={[s.statValue, { color: '#ec4899' }]}>{weeklyStats ? `${weeklyStats.completedWorkoutCount}회` : '-'}</Text>
+                  <Text style={s.statLabel}>총 운동</Text>
+                </View>
+              </View>
+              <View style={s.statCard}>
+                <View style={s.statIconWrap}>
+                  <Flame size={16} color="#fb923c" strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={[s.statValue, { color: '#fb923c' }]}>{weeklyStats ? weeklyStats.estimatedCaloriesKcal.toLocaleString() : '-'}</Text>
+                  <Text style={s.statLabel}>소모 칼로리</Text>
+                </View>
+              </View>
+              <View style={s.statCard}>
+                <View style={s.statIconWrap}>
+                  <Calendar size={16} color="#0ea5e9" strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={[s.statValue, { color: '#0ea5e9' }]}>{weeklyStats ? `${weeklyStats.maxStreakDays}일` : '-'}</Text>
+                  <Text style={s.statLabel}>연속 달성</Text>
+                </View>
+              </View>
+              <View style={s.statCard}>
+                <View style={s.statIconWrap}>
+                  <TrendingUp size={16} color="#10b981" strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={[s.statValue, { color: '#10b981' }]}>{weeklyStats ? `+${weeklyStats.earnedExp}` : '-'}</Text>
+                  <Text style={s.statLabel}>이번 주 EXP</Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -229,7 +253,7 @@ export function MypageScreen({ navigation }: Props) {
             </View>
             <View style={s.bannerText}>
               <Text style={s.bannerTitle}>오늘도 {nickname} 파이팅! 🔥</Text>
-              <Text style={s.bannerSub}>7일 연속 달성 중! 계속 달려봐요</Text>
+              <Text style={s.bannerSub}>{weeklyStats ? `${weeklyStats.maxStreakDays}일 연속 달성 중! 계속 달려봐요` : '이번 주도 열심히 달려봐요!'}</Text>
             </View>
           </LinearGradient>
 
