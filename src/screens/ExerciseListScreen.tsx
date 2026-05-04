@@ -319,7 +319,15 @@ export function ExerciseListScreen({ navigation }: Props) {
           {/* 스코프 탭 (MY / 즐겨찾기 / 최근) */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
             {SCOPE_TABS.map(tab => (
-              <TouchableOpacity key={tab.key} onPress={() => setScope(tab.key)} style={[s.tabItem, scope === tab.key && s.tabItemActive]}>
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => {
+                  setScope(tab.key);
+                  setCategoryFilter('전체');
+                  setLevelFilter('전체');
+                }}
+                style={[s.tabItem, scope === tab.key && s.tabItemActive]}
+              >
                 <Text style={[s.tabTxt, scope === tab.key ? s.tabTxtActive : s.tabTxtInactive]}>{tab.label}</Text>
               </TouchableOpacity>
             ))}
