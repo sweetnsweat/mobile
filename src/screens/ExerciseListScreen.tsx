@@ -338,7 +338,10 @@ export function ExerciseListScreen({ navigation }: Props) {
             {categoryTabs.map(c => (
               <TouchableOpacity
                 key={c.categoryDisplayName}
-                onPress={() => setCategoryFilter(c.categoryDisplayName)}
+                onPress={() => {
+                  setCategoryFilter(c.categoryDisplayName);
+                  setLevelFilter('전체');
+                }}
                 style={[s.tabItem, categoryFilter === c.categoryDisplayName && s.tabItemActive]}
               >
                 <Text style={[s.tabTxt, categoryFilter === c.categoryDisplayName ? s.tabTxtActive : s.tabTxtInactive]}>
