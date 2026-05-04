@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, StatusBar, ActivityIndicator,
+  ScrollView, StatusBar, ActivityIndicator, Pressable,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,7 +12,8 @@ import { RootStackParamList } from '../types/navigation';
 import { ScreenBackground } from '../components/ScreenBackground';
 import { BottomNav } from '../components/BottomNav';
 import { ImageWithFallback } from '../components/ImageWithFallback';
-import { FullWorldRankingItem, getFullWorldRankings, resolveMediaUrl } from '../services/HomeService';
+import { WorldRankingDetailItem, getFullWorldRankings, resolveMediaUrl } from '../services/HomeService';
+import { WorldPreviewModal } from './WorldPreviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorldRanking'>;
 
@@ -27,6 +28,7 @@ const RANK_COLORS: Record<number, [string, string]> = {
 
 type WorldRankCard = {
   rank: number;
+  scenarioId: number | null;
   name: string;
   title: string;
   score: number;
@@ -47,19 +49,22 @@ function normalizeGenre(genre?: string | null): string {
   return genre;
 }
 
-function mapWorldRank(item: FullWorldRankingItem): WorldRankCard {
-  const displayName = item.displayName || item.representativeCharacterName || item.characterName;
-  const title = item.representativeCharacterTitle || item.characterTitle || item.title || item.worldTitle;
+function mapWorldRank(item: WorldRankingDetailItem): WorldRankCard {
+  const rc = item.representativeCharacter;
+  const displayName = item.displayName || rc?.name;
+  const title = rc?.title || item.worldTitle;
   const genre = normalizeGenre(item.genre);
+  const tags = rc?.tags?.length ? rc.tags : [];
 
   return {
     rank: item.rank,
+    scenarioId: item.scenarioId,
     name: displayName || item.worldTitle,
-    title,
+    title: title || item.worldTitle,
     score: item.score,
     img: resolveMediaUrl(item.imageUrl),
     colors: RANK_COLORS[item.rank] ?? ['#7dd3fc','#60a5fa'],
-    tags: item.tags?.length ? item.tags : [`#${genre}`, `#${item.worldTitle}`],
+    tags: tags.length ? tags : [`#${genre}`, `#${item.worldTitle}`],
     genre,
     emoji: '✨',
   };
@@ -70,6 +75,7 @@ export function WorldRankingScreen({ navigation }: Props) {
   const [search, setSearch] = useState('');
   const [ranking, setRanking] = useState<WorldRankCard[]>([]);
   const [loading, setLoading] = useState(false);
+  const [previewId, setPreviewId] = useState<number | null>(null);
 
   useFocusEffect(useCallback(() => {
     loadRankings();
@@ -78,7 +84,7 @@ export function WorldRankingScreen({ navigation }: Props) {
   async function loadRankings() {
     setLoading(true);
     try {
-      const data = await getFullWorldRankings(20);
+      const data = await getFullWorldRankings(0, 50);
       const nextRanking = data.map(mapWorldRank);
       setRanking(nextRanking);
     } catch (e) {
@@ -169,7 +175,7 @@ export function WorldRankingScreen({ navigation }: Props) {
           {showTop3 && (
             <View style={s.podium}>
               {/* 2nd */}
-              <View style={s.podiumItem}>
+              <TouchableOpacity style={s.podiumItem} activeOpacity={0.8} onPress={() => top2.scenarioId != null && setPreviewId(top2.scenarioId)}>
                 <View style={[s.podiumImg, { borderColor: '#d1d5db', width: 56, height: 56 }]}>
                   {top2.img ? (
                     <ImageWithFallback uri={top2.img} style={s.podiumImgInner} />
@@ -182,10 +188,10 @@ export function WorldRankingScreen({ navigation }: Props) {
                   <Text style={s.podiumNameTxt} numberOfLines={1}>{top2.name}</Text>
                   <Text style={s.podiumScoreTxt}>{top2.score.toLocaleString()}</Text>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
 
               {/* 1st */}
-              <View style={[s.podiumItem, { marginTop: -16 }]}>
+              <TouchableOpacity style={[s.podiumItem, { marginTop: -16 }]} activeOpacity={0.8} onPress={() => top1.scenarioId != null && setPreviewId(top1.scenarioId)}>
                 <Text style={s.crownEmoji}>👑</Text>
                 <View style={[s.podiumImg, { borderColor: '#facc15', width: 64, height: 64 }]}>
                   {top1.img ? (
@@ -199,10 +205,10 @@ export function WorldRankingScreen({ navigation }: Props) {
                   <Text style={s.podiumNameTxt} numberOfLines={1}>{top1.name}</Text>
                   <Text style={s.podiumScoreTxt}>{top1.score.toLocaleString()}</Text>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
 
               {/* 3rd */}
-              <View style={s.podiumItem}>
+              <TouchableOpacity style={s.podiumItem} activeOpacity={0.8} onPress={() => top3.scenarioId != null && setPreviewId(top3.scenarioId)}>
                 <View style={[s.podiumImg, { borderColor: '#fb923c', width: 56, height: 56 }]}>
                   {top3.img ? (
                     <ImageWithFallback uri={top3.img} style={s.podiumImgInner} />
@@ -215,7 +221,7 @@ export function WorldRankingScreen({ navigation }: Props) {
                   <Text style={s.podiumNameTxt} numberOfLines={1}>{top3.name}</Text>
                   <Text style={s.podiumScoreTxt}>{top3.score.toLocaleString()}</Text>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -228,7 +234,7 @@ export function WorldRankingScreen({ navigation }: Props) {
           ) : filtered.length > 0 ? (
             <View style={s.grid}>
               {filtered.map((r) => (
-                <View key={r.rank} style={s.gridCard}>
+                <TouchableOpacity key={r.rank} style={s.gridCard} activeOpacity={0.85} onPress={() => r.scenarioId != null && setPreviewId(r.scenarioId)}>
                   {/* Image area */}
                   <View style={s.cardImgWrap}>
                     {r.img ? (
@@ -279,7 +285,7 @@ export function WorldRankingScreen({ navigation }: Props) {
                     </View>
                   </View>
 
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           ) : null}
@@ -289,6 +295,8 @@ export function WorldRankingScreen({ navigation }: Props) {
 
         <BottomNav active="home" navigation={navigation} />
       </SafeAreaView>
+
+      <WorldPreviewModal scenarioId={previewId} onClose={() => setPreviewId(null)} />
     </ScreenBackground>
   );
 }
