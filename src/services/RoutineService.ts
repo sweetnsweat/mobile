@@ -69,6 +69,23 @@ export interface RoutineRecommendationResponse {
   reasons: string[];
 }
 
+export interface TodayRoutineSummary {
+  id: number;
+  name: string;
+  estimatedMinutes: number | null;
+  active: boolean;
+}
+
+export interface TodayRoutineResponse {
+  date: string;
+  dayOfWeek: string;
+  dayOfWeekDisplayName: string;
+  activeRoutineExists: boolean;
+  routineScheduledToday: boolean;
+  routine: TodayRoutineSummary | null;
+  session: RoutineSessionResponse | null;
+}
+
 function authHeader(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth?.accessToken) throw new Error('로그인이 필요합니다.');
@@ -103,6 +120,14 @@ export async function getMyRoutines(): Promise<RoutineSummaryResponse[]> {
 export async function getActiveRoutine(): Promise<RoutineDetailResponse> {
   const response = await axios.get<{ data: RoutineDetailResponse }>(
     `${BASE_URL}/users/me/routines/active`,
+    { headers: authHeader() },
+  );
+  return response.data.data;
+}
+
+export async function getTodayRoutine(): Promise<TodayRoutineResponse> {
+  const response = await axios.get<{ data: TodayRoutineResponse }>(
+    `${BASE_URL}/routines/today`,
     { headers: authHeader() },
   );
   return response.data.data;
@@ -146,4 +171,20 @@ export async function createCustomRoutine(req: CreateCustomRoutineRequest): Prom
     { headers: { 'Content-Type': 'application/json', ...authHeader() } },
   );
   return response.data.data;
+}
+
+export async function updateRoutine(routineId: number, req: CreateCustomRoutineRequest): Promise<RoutineDetailResponse> {
+  const response = await axios.put<{ data: RoutineDetailResponse }>(
+    `${BASE_URL}/routines/${routineId}`,
+    req,
+    { headers: { 'Content-Type': 'application/json', ...authHeader() } },
+  );
+  return response.data.data;
+}
+
+export async function deleteRoutine(routineId: number): Promise<void> {
+  await axios.delete(
+    `${BASE_URL}/routines/${routineId}`,
+    { headers: authHeader() },
+  );
 }
