@@ -147,7 +147,7 @@ function ChoiceView({
           </View>
           <View style={s.optionText}>
             <Text style={s.optionTitle}>추천 루틴으로 시작하기</Text>
-            <Text style={s.optionDesc}>내 온보딩 정보 기반으로 딱 맞는 루틴을 추천해 드려요</Text>
+            <Text style={s.optionDesc}>내 온보딩 정보 기반으로 딱 맞는 루틴을 {'\n'}추천해 드려요</Text>
           </View>
           <ChevronRight size={20} color="#fff" strokeWidth={2.5} />
         </LinearGradient>
@@ -161,7 +161,7 @@ function ChoiceView({
           </View>
           <View style={s.optionText}>
             <Text style={s.optionTitle}>제가 알아서 만들래요</Text>
-            <Text style={s.optionDesc}>운동 목록에서 직접 고르고 나만의 루틴을 만들어요</Text>
+            <Text style={s.optionDesc}>운동 목록에서 직접 고르고 나만의 루틴을 {'\n'}만들어요</Text>
           </View>
           <ChevronRight size={20} color="#fff" strokeWidth={2.5} />
         </LinearGradient>
