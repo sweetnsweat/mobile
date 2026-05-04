@@ -22,6 +22,7 @@ import { BattleScreen } from '../screens/BattleScreen';
 import { MypageScreen } from '../screens/MypageScreen';
 import { CharacterShopScreen } from '../screens/CharacterShopScreen';
 import { WorldRankingScreen } from '../screens/WorldRankingScreen';
+import { ActivityRankingDetailScreen } from '../screens/ActivityRankingDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -51,6 +52,7 @@ export function AppNavigator() {
           <Stack.Screen name="Mypage" component={MypageScreen} />
           <Stack.Screen name="CharacterShop" component={CharacterShopScreen} />
           <Stack.Screen name="WorldRanking" component={WorldRankingScreen} />
+          <Stack.Screen name="ActivityRankingDetail" component={ActivityRankingDetailScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

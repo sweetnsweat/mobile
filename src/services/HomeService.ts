@@ -111,3 +111,11 @@ export async function getWeeklyActivityRankings(size = 3): Promise<WeeklyActivit
   );
   return response.data.data.rankings;
 }
+
+export async function getWeeklyActivityRankingsFull(size = 100): Promise<WeeklyActivityRankingsResponse> {
+  const response = await axios.get<{ data: WeeklyActivityRankingsResponse }>(
+    `${BASE_URL}/rankings/weekly-activity`,
+    { headers: authHeader(), params: { size } },
+  );
+  return response.data.data;
+}

@@ -32,4 +32,5 @@ export type RootStackParamList = {
   Mypage: undefined;
   CharacterShop: undefined;
   WorldRanking: undefined;
+  ActivityRankingDetail: undefined;
 };
