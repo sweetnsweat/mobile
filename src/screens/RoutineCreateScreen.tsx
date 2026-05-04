@@ -1,15 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, StatusBar, Alert, ActivityIndicator, Modal, FlatList,
+  ScrollView, StatusBar, Alert, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Plus, Trash2, Search, X, CheckCircle } from 'lucide-react-native';
+import { ChevronLeft, Trash2, CheckCircle } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { ScreenBackground } from '../components/ScreenBackground';
-import { getExercises, ExerciseListItem } from '../services/ExerciseService';
+import { getFavoriteExercises, ExerciseListItem } from '../services/ExerciseService';
 import { createCustomRoutine } from '../services/RoutineService';
 import { getMyProfile } from '../services/UserService';
 
@@ -86,12 +86,20 @@ export function RoutineCreateScreen({ navigation }: Props) {
   const [sessions, setSessions]       = useState<SessionDraft[]>([defaultSession()]);
   const [saving, setSaving]           = useState(false);
 
-  // 운동 피커 상태
-  const [pickerVisible,    setPickerVisible]    = useState(false);
-  const [pickerSessionKey, setPickerSessionKey] = useState('');
-  const [pickerQuery,      setPickerQuery]      = useState('');
-  const [pickerResults,    setPickerResults]    = useState<ExerciseListItem[]>([]);
-  const [pickerLoading,    setPickerLoading]    = useState(false);
+  const [favorites, setFavorites]         = useState<ExerciseListItem[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    getFavoriteExercises({ size: 100 })
+      .then(data => {
+        if (!mounted) return;
+        setFavorites((data?.groups ?? []).flatMap(g => g.exercises ?? []));
+      })
+      .catch(() => { if (mounted) setFavorites([]); })
+      .finally(() => { if (mounted) setFavoritesLoading(false); });
+    return () => { mounted = false; };
+  }, []);
 
   // ── 세션 조작 ──────────────────────────────────────────────────────────────
 
@@ -121,43 +129,11 @@ export function RoutineCreateScreen({ navigation }: Props) {
     }));
   }
 
-  // ── 운동 피커 ──────────────────────────────────────────────────────────────
-
-  const searchExercises = useCallback(async (q: string) => {
-    setPickerLoading(true);
-    try {
-      const data = await getExercises({ scope: 'all', keyword: q.trim() || undefined, size: 30 });
-      const all: ExerciseListItem[] = data.groups.flatMap(g => g.exercises);
-      setPickerResults(all);
-    } catch {
-      setPickerResults([]);
-    } finally {
-      setPickerLoading(false);
-    }
-  }, []);
-
-  function openPicker(sessionKey: string) {
-    setPickerSessionKey(sessionKey);
-    setPickerQuery('');
-    setPickerResults([]);
-    setPickerVisible(true);
-    searchExercises('');
-  }
-
-  function closePicker() {
-    setPickerVisible(false);
-  }
-
-  function selectExercise(ex: ExerciseListItem) {
-    const session = sessions.find(s => s.key === pickerSessionKey);
-    if (!session) return;
-    const alreadyAdded = session.exercises.some(e => e.exerciseId === ex.id);
-    if (alreadyAdded) {
-      closePicker();
-      return;
-    }
+  function toggleExercise(sessionKey: string, ex: ExerciseListItem) {
     setSessions(prev => prev.map(s => {
-      if (s.key !== pickerSessionKey) return s;
+      if (s.key !== sessionKey) return s;
+      const already = s.exercises.some(e => e.exerciseId === ex.id);
+      if (already) return s;
       return {
         ...s,
         exercises: [...s.exercises, {
@@ -171,7 +147,6 @@ export function RoutineCreateScreen({ navigation }: Props) {
         }],
       };
     }));
-    closePicker();
   }
 
   // ── 제출 ──────────────────────────────────────────────────────────────────
@@ -262,18 +237,19 @@ export function RoutineCreateScreen({ navigation }: Props) {
               session={session}
               index={idx}
               canRemove={sessions.length > 1}
+              favorites={favorites}
+              favoritesLoading={favoritesLoading}
               onUpdate={patch => updateSession(session.key, patch)}
               onRemove={() => removeSession(session.key)}
               onUpdateExercise={(ek, patch) => updateExercise(session.key, ek, patch)}
               onRemoveExercise={ek => removeExercise(session.key, ek)}
-              onAddExercise={() => openPicker(session.key)}
+              onToggleFavorite={ex => toggleExercise(session.key, ex)}
             />
           ))}
 
           {/* 세션 추가 */}
           <TouchableOpacity onPress={addSession} style={s.addSessionBtn} activeOpacity={0.85}>
-            <Plus size={16} color="#ec4899" strokeWidth={2.5} />
-            <Text style={s.addSessionTxt}>세션 추가</Text>
+            <Text style={s.addSessionTxt}>+ 세션 추가</Text>
           </TouchableOpacity>
 
           <View style={{ height: 100 }} />
@@ -290,68 +266,6 @@ export function RoutineCreateScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* 운동 피커 모달 */}
-        <Modal visible={pickerVisible} animationType="slide" transparent onRequestClose={closePicker}>
-          <View style={s.pickerOverlay}>
-            <View style={s.pickerSheet}>
-              <View style={s.pickerHeader}>
-                <Text style={s.pickerTitle}>운동 선택</Text>
-                <TouchableOpacity onPress={closePicker} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={20} color="#6b7280" strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={s.pickerSearch}>
-                <Search size={14} color="#9ca3af" strokeWidth={2} />
-                <TextInput
-                  value={pickerQuery}
-                  onChangeText={q => { setPickerQuery(q); searchExercises(q); }}
-                  placeholder="운동 이름 검색"
-                  placeholderTextColor="#9ca3af"
-                  style={s.pickerInput}
-                  autoFocus
-                />
-              </View>
-
-              {pickerLoading ? (
-                <View style={s.pickerCenter}>
-                  <ActivityIndicator color="#ec4899" />
-                </View>
-              ) : (
-                <FlatList
-                  data={pickerResults}
-                  keyExtractor={item => String(item.id)}
-                  style={s.pickerList}
-                  keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => {
-                    const session = sessions.find(s => s.key === pickerSessionKey);
-                    const added = session?.exercises.some(e => e.exerciseId === item.id) ?? false;
-                    return (
-                      <TouchableOpacity
-                        onPress={() => selectExercise(item)}
-                        style={s.pickerRow}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={s.pickerEmoji}>{item.emoji}</Text>
-                        <View style={s.pickerInfo}>
-                          <Text style={s.pickerName}>{item.name}</Text>
-                          <Text style={s.pickerMeta}>{item.levelDisplayName} · {item.categoryDisplayName}</Text>
-                        </View>
-                        {added && <CheckCircle size={18} color="#ec4899" strokeWidth={2} />}
-                      </TouchableOpacity>
-                    );
-                  }}
-                  ListEmptyComponent={
-                    <View style={s.pickerCenter}>
-                      <Text style={s.pickerEmpty}>검색 결과가 없어요</Text>
-                    </View>
-                  }
-                />
-              )}
-            </View>
-          </View>
-        </Modal>
-
       </SafeAreaView>
     </ScreenBackground>
   );
@@ -363,17 +277,20 @@ type SessionCardProps = {
   session: SessionDraft;
   index: number;
   canRemove: boolean;
+  favorites: ExerciseListItem[];
+  favoritesLoading: boolean;
   onUpdate: (patch: Partial<SessionDraft>) => void;
   onRemove: () => void;
   onUpdateExercise: (key: string, patch: Partial<ExerciseDraft>) => void;
   onRemoveExercise: (key: string) => void;
-  onAddExercise: () => void;
+  onToggleFavorite: (ex: ExerciseListItem) => void;
 };
 
 function SessionCard({
   session, index, canRemove,
+  favorites, favoritesLoading,
   onUpdate, onRemove,
-  onUpdateExercise, onRemoveExercise, onAddExercise,
+  onUpdateExercise, onRemoveExercise, onToggleFavorite,
 }: SessionCardProps) {
   return (
     <View style={s.card}>
@@ -448,10 +365,39 @@ function SessionCard({
         style={[s.fieldInput, { width: 100 }]}
       />
 
-      {/* 운동 목록 */}
+      {/* 즐겨찾기 운동 목록 */}
+      <Text style={s.fieldLabel}>즐겨찾기 운동</Text>
+      {favoritesLoading ? (
+        <ActivityIndicator color="#ec4899" style={{ marginVertical: 8 }} />
+      ) : favorites.length === 0 ? (
+        <Text style={s.favEmpty}>즐겨찾기한 운동이 없어요</Text>
+      ) : (
+        <View style={s.favList}>
+          {favorites.map(ex => {
+            const added = session.exercises.some(e => e.exerciseId === ex.id);
+            return (
+              <TouchableOpacity
+                key={String(ex.id)}
+                onPress={() => { if (!added) onToggleFavorite(ex); }}
+                style={[s.favRow, added && s.favRowAdded]}
+                activeOpacity={added ? 1 : 0.7}
+              >
+                <Text style={s.favEmoji}>{ex.emoji}</Text>
+                <View style={s.favInfo}>
+                  <Text style={s.favName}>{ex.name}</Text>
+                  <Text style={s.favMeta}>{ex.levelDisplayName} · {ex.categoryDisplayName}</Text>
+                </View>
+                {added && <CheckCircle size={16} color="#ec4899" strokeWidth={2} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* 추가된 운동 목록 */}
       {session.exercises.length > 0 && (
         <View style={s.exerciseList}>
-          <Text style={s.fieldLabel}>운동 목록</Text>
+          <Text style={s.fieldLabel}>추가된 운동</Text>
           {session.exercises.map(ex => (
             <ExerciseRow
               key={ex.key}
@@ -462,12 +408,6 @@ function SessionCard({
           ))}
         </View>
       )}
-
-      {/* 운동 추가 */}
-      <TouchableOpacity onPress={onAddExercise} style={s.addExBtn} activeOpacity={0.85}>
-        <Plus size={14} color="#0284c7" strokeWidth={2.5} />
-        <Text style={s.addExTxt}>운동 추가</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -581,6 +521,20 @@ const s = StyleSheet.create({
   typeTxt: { fontSize: 11, fontWeight: '600', color: '#9ca3af' },
   typeTxtActive: { color: '#0284c7' },
 
+  // 즐겨찾기 목록
+  favList: { gap: 4 },
+  favEmpty: { fontSize: 12, color: '#9ca3af', textAlign: 'center', paddingVertical: 8 },
+  favRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1.5, borderColor: '#e5e7eb', backgroundColor: '#f9fafb',
+  },
+  favRowAdded: { borderColor: '#fbcfe8', backgroundColor: '#fdf2f8' },
+  favEmoji: { fontSize: 20 },
+  favInfo: { flex: 1 },
+  favName: { fontSize: 13, fontWeight: '600', color: '#1f2937' },
+  favMeta: { fontSize: 10, color: '#9ca3af', marginTop: 1 },
+
   // 운동
   exerciseList: { gap: 8 },
   exRow: {
@@ -599,18 +553,10 @@ const s = StyleSheet.create({
     fontSize: 13, color: '#1f2937', textAlign: 'center', backgroundColor: '#f9fafb',
   },
 
-  addExBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 10, borderRadius: 10,
-    borderWidth: 1.5, borderColor: '#bae6fd', borderStyle: 'dashed',
-    backgroundColor: '#f0f9ff',
-  },
-  addExTxt: { fontSize: 13, color: '#0284c7', fontWeight: '600' },
-
   addSessionBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 14, borderRadius: 14,
-    borderWidth: 1.5, borderColor: '#fbcfe8', borderStyle: 'dashed',
+    borderWidth: 1.5, borderColor: '#fbcfe8',
     backgroundColor: '#fff',
   },
   addSessionTxt: { fontSize: 14, color: '#ec4899', fontWeight: '600' },
@@ -619,32 +565,4 @@ const s = StyleSheet.create({
   saveBtn: { borderRadius: 12, overflow: 'hidden' },
   saveGrad: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
   saveTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },
-
-  // 피커 모달
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  pickerSheet: {
-    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingTop: 20, maxHeight: '75%',
-  },
-  pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 },
-  pickerTitle: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
-  pickerSearch: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: '#f9fafb', borderRadius: 10, borderWidth: 1.5, borderColor: '#e5e7eb',
-    paddingHorizontal: 12, paddingVertical: 8,
-  },
-  pickerInput: { flex: 1, fontSize: 13, color: '#1f2937' },
-  pickerList: { flex: 1 },
-  pickerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 20, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#f9fafb',
-  },
-  pickerEmoji: { fontSize: 22 },
-  pickerInfo: { flex: 1 },
-  pickerName: { fontSize: 14, fontWeight: '600', color: '#1f2937' },
-  pickerMeta: { fontSize: 11, color: '#9ca3af', marginTop: 2 },
-  pickerCenter: { alignItems: 'center', justifyContent: 'center', padding: 32 },
-  pickerEmpty: { fontSize: 13, color: '#9ca3af' },
 });
