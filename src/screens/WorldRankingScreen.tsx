@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, StatusBar,
+  ScrollView, StatusBar, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,40 +12,100 @@ import { RootStackParamList } from '../types/navigation';
 import { ScreenBackground } from '../components/ScreenBackground';
 import { BottomNav } from '../components/BottomNav';
 import { ImageWithFallback } from '../components/ImageWithFallback';
+import { FullWorldRankingItem, getFullWorldRankings, resolveMediaUrl } from '../services/HomeService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorldRanking'>;
 
 const GENRES = ['전체','로맨스','판타지','무협','학원물','현대'];
 
-const WORLD_RANKING = [
-  { rank: 1, name: '칼라일',    title: '황제',    score: 9820, img: 'https://i.imgur.com/83q0Fz8.jpeg', colors: ['#facc15','#d97706'] as [string,string], tags: ['#최강자','#황제군림','#무패'],    genre: '판타지', streak: 42, emoji: '' },
-  { rank: 2, name: '라이벌 하준',title: '도전자',  score: 8740, img: 'https://i.imgur.com/Zl9DFkK.jpeg', colors: ['#d1d5db','#9ca3af'] as [string,string], tags: ['#라이벌','#끝없는도전','#2위탈출'],genre: '현대',   streak: 31, emoji: '' },
-  { rank: 3, name: '이수연',    title: '불꽃',    score: 7210, img: 'https://i.imgur.com/v0njcuh.png',   colors: ['#fda4af','#fb7185'] as [string,string], tags: ['#불꽃챌린저','#7연속','#성장중'],  genre: '학원물', streak: 7,  emoji: '' },
-  { rank: 4, name: '민수 선배', title: '베테랑',  score: 6540, img: 'https://i.imgur.com/ub32dOr.png',   colors: ['#7dd3fc','#60a5fa'] as [string,string], tags: ['#베테랑','#선배','#경험치'],      genre: '학원물', streak: 19, emoji: '' },
-  { rank: 5, name: '김태양',   title: '신예',    score: 5980, img: '',                                  colors: ['#6ee7b7','#5eead4'] as [string,string], tags: ['#신예','#급성장','#주목'],        genre: '로맨스', streak: 12, emoji: '☀️' },
-  { rank: 6, name: '박서진',   title: '철인',    score: 5120, img: '',                                  colors: ['#c4b5fd','#a78bfa'] as [string,string], tags: ['#철인','#꾸준함','#지구력'],      genre: '무협',   streak: 25, emoji: '🛡️' },
-  { rank: 7, name: '최유나',   title: '스피드퀸', score: 4780, img: '',                                  colors: ['#f9a8d4','#fda4af'] as [string,string], tags: ['#스피드퀸','#러닝','#최속'],      genre: '로맨스', streak: 9,  emoji: '⚡' },
-  { rank: 8, name: '강민혁',   title: '근육맨',  score: 4320, img: '',                                  colors: ['#fca5a5','#fb923c'] as [string,string], tags: ['#근육맨','#웨이트','#파워'],      genre: '무협',   streak: 14, emoji: '💥' },
-];
-
 const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+const RANK_COLORS: Record<number, [string, string]> = {
+  1: ['#facc15','#d97706'],
+  2: ['#d1d5db','#9ca3af'],
+  3: ['#fda4af','#fb7185'],
+};
 
+type WorldRankCard = {
+  rank: number;
+  name: string;
+  title: string;
+  score: number;
+  img: string;
+  colors: [string, string];
+  tags: string[];
+  genre: string;
+  emoji: string;
+};
+
+function normalizeGenre(genre?: string | null): string {
+  if (!genre) return '세계관';
+  if (genre.includes('로맨스')) return '로맨스';
+  if (genre.includes('판타지')) return '판타지';
+  if (genre.includes('무협')) return '무협';
+  if (genre.includes('학원')) return '학원물';
+  if (genre.includes('현대')) return '현대';
+  return genre;
+}
+
+function mapWorldRank(item: FullWorldRankingItem): WorldRankCard {
+  const displayName = item.displayName || item.representativeCharacterName || item.characterName;
+  const title = item.representativeCharacterTitle || item.characterTitle || item.title || item.worldTitle;
+  const genre = normalizeGenre(item.genre);
+
+  return {
+    rank: item.rank,
+    name: displayName || item.worldTitle,
+    title,
+    score: item.score,
+    img: resolveMediaUrl(item.imageUrl),
+    colors: RANK_COLORS[item.rank] ?? ['#7dd3fc','#60a5fa'],
+    tags: item.tags?.length ? item.tags : [`#${genre}`, `#${item.worldTitle}`],
+    genre,
+    emoji: '✨',
+  };
+}
 
 export function WorldRankingScreen({ navigation }: Props) {
   const [genre, setGenre]   = useState('전체');
   const [search, setSearch] = useState('');
+  const [ranking, setRanking] = useState<WorldRankCard[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const filtered = WORLD_RANKING.filter(r => {
-    const matchGenre  = genre === '전체' || r.genre === genre;
-    const matchSearch = !search || r.name.includes(search) || r.title.includes(search);
+  useFocusEffect(useCallback(() => {
+    loadRankings();
+  }, []));
+
+  async function loadRankings() {
+    setLoading(true);
+    try {
+      const data = await getFullWorldRankings(20);
+      const nextRanking = data.map(mapWorldRank);
+      setRanking(nextRanking);
+    } catch (e) {
+      console.log('[WorldRankingAPI] loadRankings error:', e);
+      setRanking([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filtered = ranking.filter(r => {
+    const matchGenre = genre === '전체' || r.genre === genre;
+    const matchSearch = !normalizedSearch || (
+      r.name.toLowerCase().includes(normalizedSearch) ||
+      r.title.toLowerCase().includes(normalizedSearch) ||
+      r.genre.toLowerCase().includes(normalizedSearch) ||
+      r.tags.some(tag => tag.toLowerCase().includes(normalizedSearch))
+    );
     return matchGenre && matchSearch;
   });
 
-  const showTop3 = !search && genre === '전체';
+  const showTop3 = !normalizedSearch && genre === '전체' && ranking.length >= 3;
 
-  const top1 = WORLD_RANKING[0];
-  const top2 = WORLD_RANKING[1];
-  const top3 = WORLD_RANKING[2];
+  const top1 = ranking[0]!;
+  const top2 = ranking[1]!;
+  const top3 = ranking[2]!;
 
   return (
     <ScreenBackground end={{ x: 0, y: 1 }}>
@@ -71,7 +132,7 @@ export function WorldRankingScreen({ navigation }: Props) {
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="이름, 칭호 검색..."
+              placeholder="세계관, 대표 캐릭터 검색..."
               placeholderTextColor="#d1d5db"
               style={s.searchInput}
             />
@@ -97,6 +158,13 @@ export function WorldRankingScreen({ navigation }: Props) {
 
         {/* Scroll body */}
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+          {loading && (
+            <View style={s.loadingRow}>
+              <ActivityIndicator color="#ec4899" size="small" />
+              <Text style={s.loadingTxt}>랭킹을 불러오는 중...</Text>
+            </View>
+          )}
+
           {/* TOP 3 podium */}
           {showTop3 && (
             <View style={s.podium}>
@@ -106,7 +174,7 @@ export function WorldRankingScreen({ navigation }: Props) {
                   {top2.img ? (
                     <ImageWithFallback uri={top2.img} style={s.podiumImgInner} />
                   ) : (
-                    <LinearGradient colors={top2.colors} style={s.podiumImgInner} />
+                    <View style={[s.podiumImgInner, s.grayImage]} />
                   )}
                 </View>
                 <LinearGradient colors={top2.colors} style={[s.podiumLabel, { minWidth: 60 }]}>
@@ -123,7 +191,7 @@ export function WorldRankingScreen({ navigation }: Props) {
                   {top1.img ? (
                     <ImageWithFallback uri={top1.img} style={s.podiumImgInner} />
                   ) : (
-                    <LinearGradient colors={top1.colors} style={s.podiumImgInner} />
+                    <View style={[s.podiumImgInner, s.grayImage]} />
                   )}
                 </View>
                 <LinearGradient colors={top1.colors} style={[s.podiumLabel, { minWidth: 68 }]}>
@@ -139,7 +207,7 @@ export function WorldRankingScreen({ navigation }: Props) {
                   {top3.img ? (
                     <ImageWithFallback uri={top3.img} style={s.podiumImgInner} />
                   ) : (
-                    <LinearGradient colors={top3.colors} style={s.podiumImgInner} />
+                    <View style={[s.podiumImgInner, s.grayImage]} />
                   )}
                 </View>
                 <LinearGradient colors={top3.colors} style={[s.podiumLabel, { minWidth: 60 }]}>
@@ -152,23 +220,21 @@ export function WorldRankingScreen({ navigation }: Props) {
           )}
 
           {/* Grid */}
-          {filtered.length === 0 ? (
+          {!loading && filtered.length === 0 ? (
             <View style={s.emptyWrap}>
               <Text style={s.emptyEmoji}>🔍</Text>
-              <Text style={s.emptyTxt}>해당 장르의 캐릭터가 없어요</Text>
+              <Text style={s.emptyTxt}>해당 조건의 세계관이 없어요</Text>
             </View>
-          ) : (
+          ) : filtered.length > 0 ? (
             <View style={s.grid}>
-              {filtered.map((r, idx) => (
-                <View key={r.rank} style={[s.gridCard, r.name === '이수연' && s.gridCardMe]}>
+              {filtered.map((r) => (
+                <View key={r.rank} style={s.gridCard}>
                   {/* Image area */}
                   <View style={s.cardImgWrap}>
                     {r.img ? (
                       <ImageWithFallback uri={r.img} style={s.cardImg} />
                     ) : (
-                      <LinearGradient colors={r.colors} style={[s.cardImg, { alignItems: 'center', justifyContent: 'center' }]}>
-                        <Text style={{ fontSize: 36 }}>{r.emoji}</Text>
-                      </LinearGradient>
+                      <View style={[s.cardImg, s.grayImage]} />
                     )}
                     <LinearGradient
                       colors={['transparent','rgba(0,0,0,0.6)']}
@@ -213,12 +279,10 @@ export function WorldRankingScreen({ navigation }: Props) {
                     </View>
                   </View>
 
-                  {/* Me highlight */}
-                  {r.name === '이수연' && <View style={s.meHighlight} />}
                 </View>
               ))}
             </View>
-          )}
+          ) : null}
 
           <View style={{ height: 8 }} />
         </ScrollView>
@@ -254,11 +318,15 @@ const s = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 16 },
 
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10 },
+  loadingTxt: { fontSize: 12, fontWeight: '700', color: '#9ca3af' },
+
   podium: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginBottom: 16 },
   podiumItem: { alignItems: 'center', gap: 4 },
   crownEmoji: { fontSize: 20 },
   podiumImg: { borderRadius: 16, overflow: 'hidden', borderWidth: 2 },
   podiumImgInner: { width: '100%', height: '100%' },
+  grayImage: { backgroundColor: '#e5e7eb' },
   podiumLabel: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, alignItems: 'center' },
   podiumRankTxt: { color: '#fff', fontWeight: '900', fontSize: 9 },
   podiumNameTxt: { color: '#fff', fontWeight: '900', fontSize: 10, maxWidth: 60, textAlign: 'center' },

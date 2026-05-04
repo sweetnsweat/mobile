@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Animated, Easing, Dimensions, StatusBar, Image,
+  ScrollView, Animated, Easing, Dimensions, StatusBar, Image, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,15 +15,18 @@ import { BottomNav } from '../components/BottomNav';
 import { SectionHeader } from '../components/SectionHeader';
 import { getMyProfile } from '../services/UserService';
 import { getTodayRoutine, TodayRoutineResponse } from '../services/RoutineService';
+import {
+  getWeeklyActivityRankings,
+  getWorldBanners,
+  getWorldRankings,
+  resolveMediaUrl,
+  WeeklyActivityRankingItem,
+  WorldBannerSlide,
+  WorldRankingItem,
+} from '../services/HomeService';
 import { RoutineDetailModal } from './RoutineDetailModal';
 
 const { width: W } = Dimensions.get('window');
-
-const SLIDES = [
-  { src: 'https://i.imgur.com/ub32dOr.png', name: '민수 선배', quote: '열심히 연습해서 내년엔 내 후배 하는 거야?' },
-  { src: 'https://i.imgur.com/83q0Fz8.jpeg', name: '칼라일', quote: '고작 그 정도 각오로 황제가 되겠다는 건가?' },
-  { src: 'https://i.imgur.com/Zl9DFkK.jpeg', name: '라이벌 하준', quote: '너 요즘 늘었던데… 긴장되기 시작했어.' },
-];
 
 const ROUTINE_COLORS: [string, string][] = [
   ['#f472b6', '#fb7185'],
@@ -78,41 +81,112 @@ function todayRoutineWorkoutCount(todayRoutine: TodayRoutineResponse): number {
   return todayRoutine.session?.items.length ?? 0;
 }
 
-const RANKING = [
-  { rank: 1, name: '하준', score: 1240, medal: '🥇', isMe: false },
-  { rank: 2, name: '',    score: 980,  medal: '🥈', isMe: true  },
-  { rank: 3, name: '민지', score: 860,  medal: '🥉', isMe: false },
-];
-
-const WORLD_RANKING = [
-  { rank: 1, name: '칼라일',     score: 9820, img: 'https://i.imgur.com/83q0Fz8.jpeg', title: '황제',  colors: ['#facc15', '#f59e0b'] as [string, string], isMe: false },
-  { rank: 2, name: '라이벌 하준', score: 8740, img: 'https://i.imgur.com/Zl9DFkK.jpeg', title: '도전자', colors: ['#d1d5db', '#9ca3af'] as [string, string], isMe: false },
-  { rank: 3, name: '',           score: 7210, img: 'https://i.imgur.com/v0njcuh.png',  title: '불꽃',  colors: ['#fdba74', '#fb7185'] as [string, string], isMe: true  },
-  { rank: 4, name: '민수 선배',   score: 6540, img: 'https://i.imgur.com/ub32dOr.png', title: '베테랑', colors: ['#7dd3fc', '#60a5fa'] as [string, string], isMe: false },
-  { rank: 5, name: '김태양',      score: 5980, img: '',                                title: '신예',  colors: ['#6ee7b7', '#2dd4bf'] as [string, string], isMe: false },
-];
-
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 const BANNER_H = 200;
+const BANNER_W = W - 32;
+const RANK_MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+const WORLD_RANK_COLORS: Record<number, [string, string]> = {
+  1: ['#facc15', '#f59e0b'],
+  2: ['#d1d5db', '#9ca3af'],
+  3: ['#fdba74', '#fb7185'],
+};
+
+type HomeSlide = { src: string; name: string; quote: string };
+type HomeWorldRank = {
+  rank: number;
+  name: string;
+  score: number;
+  img: string;
+  title: string;
+  colors: [string, string];
+  isMe: boolean;
+};
+type HomeWeeklyRank = { rank: number; name: string; score: number; medal: string; isMe: boolean };
+
+function mapBannerSlide(slide: WorldBannerSlide): HomeSlide {
+  const representativeLabel = [
+    slide.representativeCharacterTitle,
+    slide.representativeCharacterName,
+  ].filter(Boolean).join(' ');
+
+  return {
+    src: resolveMediaUrl(slide.backgroundImageUrl || slide.imageUrl),
+    name: representativeLabel || slide.headline || slide.worldTitle,
+    quote: slide.quote || slide.summary || slide.genre || slide.worldTitle,
+  };
+}
+
+function mapWorldRank(item: WorldRankingItem): HomeWorldRank {
+  return {
+    rank: item.rank,
+    name: item.displayName || item.worldTitle,
+    score: item.score,
+    img: resolveMediaUrl(item.imageUrl),
+    title: item.worldTitle,
+    colors: WORLD_RANK_COLORS[item.rank] ?? ['#7dd3fc', '#60a5fa'],
+    isMe: false,
+  };
+}
+
+function mapWeeklyRank(item: WeeklyActivityRankingItem): HomeWeeklyRank {
+  return {
+    rank: item.rank,
+    name: item.nickname,
+    score: item.weeklyExp,
+    medal: RANK_MEDAL[item.rank] ?? `${item.rank}`,
+    isMe: item.isMe,
+  };
+}
 
 export function HomeScreen({ navigation }: Props) {
   const [slide, setSlide] = useState(0);
   const [animating, setAnimating] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [nickname, setNickname] = useState('');
+  const [slides, setSlides] = useState<HomeSlide[]>([]);
+  const [worldRanking, setWorldRanking] = useState<HomeWorldRank[]>([]);
+  const [weeklyRanking, setWeeklyRanking] = useState<HomeWeeklyRank[]>([]);
+  const [homeDataLoading, setHomeDataLoading] = useState(false);
   const [todayRoutine, setTodayRoutine] = useState<TodayRoutineResponse | null>(null);
   const [todayRoutineLoading, setTodayRoutineLoading] = useState(false);
   const [routineModalVisible, setRoutineModalVisible] = useState(false);
 
-  const nextIndex = (slide + 1) % SLIDES.length;
+  const nextIndex = slides.length > 0 ? (slide + 1) % slides.length : 0;
 
   useEffect(() => {
     getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
   }, []);
 
   useFocusEffect(useCallback(() => {
+    loadHomeData();
     loadTodayRoutine();
   }, []));
+
+  async function loadHomeData() {
+    setHomeDataLoading(true);
+    try {
+      const [bannerData, worldRankingData, weeklyRankingData] = await Promise.all([
+        getWorldBanners(3),
+        getWorldRankings(5),
+        getWeeklyActivityRankings(3),
+      ]);
+
+      const nextSlides = bannerData.map(mapBannerSlide).filter(item => item.src);
+      const nextWorldRanking = worldRankingData.map(mapWorldRank);
+      const nextWeeklyRanking = weeklyRankingData.map(mapWeeklyRank);
+
+      setSlides(nextSlides);
+      setWorldRanking(nextWorldRanking);
+      setWeeklyRanking(nextWeeklyRanking);
+    } catch (e) {
+      console.log('[HomeAPI] loadHomeData error:', e);
+      setSlides([]);
+      setWorldRanking([]);
+      setWeeklyRanking([]);
+    } finally {
+      setHomeDataLoading(false);
+    }
+  }
 
   async function loadTodayRoutine() {
     setTodayRoutineLoading(true);
@@ -129,20 +203,26 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const timer = setInterval(goNext, 3000);
     return () => clearInterval(timer);
-  }, [slide, animating]);
+  }, [slide, animating, slides.length]);
+
+  useEffect(() => {
+    if (slide >= slides.length) setSlide(0);
+  }, [slide, slides.length]);
 
   function goNext() {
-    if (animating) return;
+    if (animating || slides.length === 0) return;
     setAnimating(true);
     Animated.timing(slideAnim, {
-      toValue: -W,
+      toValue: -BANNER_W,
       duration: 450,
       useNativeDriver: true,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
     }).start(() => {
-      slideAnim.setValue(0);
-      setSlide(prev => (prev + 1) % SLIDES.length);
-      setAnimating(false);
+      setSlide(prev => (prev + 1) % slides.length);
+      requestAnimationFrame(() => {
+        slideAnim.setValue(0);
+        setAnimating(false);
+      });
     });
   }
 
@@ -177,32 +257,41 @@ export function HomeScreen({ navigation }: Props) {
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Slide banner */}
           <View style={[s.bannerWrap, { height: BANNER_H }]}>
-            <Animated.View style={[s.slideTrack, { transform: [{ translateX: slideAnim }] }]}>
-              <View style={{ width: W - 32, height: BANNER_H, overflow: 'hidden' }}>
-                <ImageWithFallback uri={SLIDES[slide].src} style={s.slideImg} />
-                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.slideOverlay} />
-                <View style={s.slideText}>
-                  <Text style={s.slideName}>{SLIDES[slide].name}</Text>
-                  <Text style={s.slideQuote}>"{SLIDES[slide].quote}"</Text>
-                </View>
+            {slides.length === 0 ? (
+              <View style={s.bannerPlaceholder}>
+                {homeDataLoading ? <ActivityIndicator color="#ec4899" size="small" /> : null}
+                <Text style={s.placeholderTitle}>{homeDataLoading ? '세계관을 불러오는 중...' : '표시할 세계관이 없습니다'}</Text>
               </View>
-              <View style={{ width: W - 32, height: BANNER_H, overflow: 'hidden' }}>
-                <ImageWithFallback uri={SLIDES[nextIndex].src} style={s.slideImg} />
-                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.slideOverlay} />
-                <View style={s.slideText}>
-                  <Text style={s.slideName}>{SLIDES[nextIndex].name}</Text>
-                  <Text style={s.slideQuote}>"{SLIDES[nextIndex].quote}"</Text>
+            ) : (
+              <>
+                <Animated.View style={[s.slideTrack, { transform: [{ translateX: slideAnim }] }]}>
+                  <View style={s.slidePane}>
+                    <ImageWithFallback uri={slides[slide].src} style={s.slideImg} />
+                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.slideOverlay} />
+                    <View style={s.slideText}>
+                      <Text style={s.slideName}>{slides[slide].name}</Text>
+                      <Text style={s.slideQuote}>"{slides[slide].quote}"</Text>
+                    </View>
+                  </View>
+                  <View style={s.slidePane}>
+                    <ImageWithFallback uri={slides[nextIndex].src} style={s.slideImg} />
+                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.slideOverlay} />
+                    <View style={s.slideText}>
+                      <Text style={s.slideName}>{slides[nextIndex].name}</Text>
+                      <Text style={s.slideQuote}>"{slides[nextIndex].quote}"</Text>
+                    </View>
+                  </View>
+                </Animated.View>
+                <View style={s.dots}>
+                  {slides.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[s.dot, { width: i === slide ? 20 : 6, backgroundColor: i === slide ? '#fff' : 'rgba(255,255,255,0.4)' }]}
+                    />
+                  ))}
                 </View>
-              </View>
-            </Animated.View>
-            <View style={s.dots}>
-              {SLIDES.map((_, i) => (
-                <View
-                  key={i}
-                  style={[s.dot, { width: i === slide ? 20 : 6, backgroundColor: i === slide ? '#fff' : 'rgba(255,255,255,0.4)' }]}
-                />
-              ))}
-            </View>
+              </>
+            )}
           </View>
 
           {/* World ranking */}
@@ -213,54 +302,60 @@ export function HomeScreen({ navigation }: Props) {
               onMore={() => navigation.navigate('WorldRanking')}
             />
 
-            {/* TOP 3 podium */}
+            {worldRanking.length < 3 ? (
+              <View style={s.placeholderCard}>
+                {homeDataLoading ? <ActivityIndicator color="#ec4899" size="small" /> : null}
+                <Text style={s.placeholderTitle}>{homeDataLoading ? '랭킹을 불러오는 중...' : '세계관 랭킹이 없습니다'}</Text>
+              </View>
+            ) : (
+              <>
             <View style={s.podium}>
               {/* 2위 */}
               <View style={s.podiumItem}>
                 <View style={[s.podiumImg, { width: 48, height: 48, borderColor: '#d1d5db' }]}>
-                  {WORLD_RANKING[1].img ? (
-                    <Image source={{ uri: WORLD_RANKING[1].img }} style={s.podiumImgInner} resizeMode="cover" />
+                  {worldRanking[1].img ? (
+                    <Image source={{ uri: worldRanking[1].img }} style={s.podiumImgInner} resizeMode="cover" />
                   ) : <View style={[s.podiumImgInner, { backgroundColor: '#e5e7eb' }]} />}
                 </View>
-                <LinearGradient colors={WORLD_RANKING[1].colors} style={[s.podiumLabel, { minWidth: 56 }]}>
+                <LinearGradient colors={worldRanking[1].colors} style={[s.podiumLabel, { minWidth: 56 }]}>
                   <Text style={s.podiumRank}>🥈 2위</Text>
-                  <Text style={s.podiumName} numberOfLines={1}>{WORLD_RANKING[1].name}</Text>
-                  <Text style={s.podiumScore}>{WORLD_RANKING[1].score.toLocaleString()}</Text>
+                  <Text style={s.podiumName} numberOfLines={1}>{worldRanking[1].name}</Text>
+                  <Text style={s.podiumScore}>{worldRanking[1].score.toLocaleString()}</Text>
                 </LinearGradient>
               </View>
               {/* 1위 */}
               <View style={[s.podiumItem, { marginTop: -12 }]}>
                 <Text style={s.crown}>👑</Text>
                 <View style={[s.podiumImg, { width: 56, height: 56, borderColor: '#facc15' }]}>
-                  {WORLD_RANKING[0].img ? (
-                    <Image source={{ uri: WORLD_RANKING[0].img }} style={s.podiumImgInner} resizeMode="cover" />
+                  {worldRanking[0].img ? (
+                    <Image source={{ uri: worldRanking[0].img }} style={s.podiumImgInner} resizeMode="cover" />
                   ) : <View style={[s.podiumImgInner, { backgroundColor: '#e5e7eb' }]} />}
                 </View>
-                <LinearGradient colors={WORLD_RANKING[0].colors} style={[s.podiumLabel, { minWidth: 64 }]}>
+                <LinearGradient colors={worldRanking[0].colors} style={[s.podiumLabel, { minWidth: 64 }]}>
                   <Text style={s.podiumRank}>🥇 1위</Text>
-                  <Text style={s.podiumName} numberOfLines={1}>{WORLD_RANKING[0].name}</Text>
-                  <Text style={s.podiumScore}>{WORLD_RANKING[0].score.toLocaleString()}</Text>
+                  <Text style={s.podiumName} numberOfLines={1}>{worldRanking[0].name}</Text>
+                  <Text style={s.podiumScore}>{worldRanking[0].score.toLocaleString()}</Text>
                 </LinearGradient>
               </View>
               {/* 3위 */}
               <View style={s.podiumItem}>
                 <View style={[s.podiumImg, { width: 48, height: 48, borderColor: '#fdba74' }]}>
-                  {WORLD_RANKING[2].img ? (
-                    <Image source={{ uri: WORLD_RANKING[2].img }} style={s.podiumImgInner} resizeMode="cover" />
+                  {worldRanking[2].img ? (
+                    <Image source={{ uri: worldRanking[2].img }} style={s.podiumImgInner} resizeMode="cover" />
                   ) : <View style={[s.podiumImgInner, { backgroundColor: '#e5e7eb' }]} />}
                 </View>
-                <LinearGradient colors={WORLD_RANKING[2].colors} style={[s.podiumLabel, { minWidth: 56 }]}>
+                <LinearGradient colors={worldRanking[2].colors} style={[s.podiumLabel, { minWidth: 56 }]}>
                   <Text style={s.podiumRank}>🥉 3위</Text>
-                  <Text style={s.podiumName} numberOfLines={1}>{WORLD_RANKING[2].isMe ? nickname : WORLD_RANKING[2].name}</Text>
-                  <Text style={s.podiumScore}>{WORLD_RANKING[2].score.toLocaleString()}</Text>
+                  <Text style={s.podiumName} numberOfLines={1}>{worldRanking[2].isMe ? nickname : worldRanking[2].name}</Text>
+                  <Text style={s.podiumScore}>{worldRanking[2].score.toLocaleString()}</Text>
                 </LinearGradient>
               </View>
             </View>
 
             {/* 4-5위 */}
             <View style={s.listCard}>
-              {WORLD_RANKING.slice(3).map((r, i) => (
-                <View key={r.rank} style={[s.listRow, i < WORLD_RANKING.slice(3).length - 1 && s.listBorder]}>
+              {worldRanking.slice(3).map((r, i) => (
+                <View key={r.rank} style={[s.listRow, i < worldRanking.slice(3).length - 1 && s.listBorder]}>
                   <Text style={s.listRank}>{r.rank}</Text>
                   <View style={s.listAvatar}>
                     {r.img ? (
@@ -278,6 +373,8 @@ export function HomeScreen({ navigation }: Props) {
                 </View>
               ))}
             </View>
+              </>
+            )}
           </View>
 
           {/* Today's routine */}
@@ -353,11 +450,17 @@ export function HomeScreen({ navigation }: Props) {
               icon={<Trophy size={16} color="#fb923c" strokeWidth={2.5} />}
               title="이번 주 랭킹"
             />
-            <View style={s.listCard}>
-              {RANKING.map((r, i) => (
+            {weeklyRanking.length === 0 ? (
+              <View style={s.placeholderCard}>
+                {homeDataLoading ? <ActivityIndicator color="#ec4899" size="small" /> : null}
+                <Text style={s.placeholderTitle}>{homeDataLoading ? '랭킹을 불러오는 중...' : '이번 주 랭킹이 없습니다'}</Text>
+              </View>
+            ) : (
+              <View style={s.listCard}>
+              {weeklyRanking.map((r, i) => (
                 <View
                   key={r.rank}
-                  style={[s.rankRow, i < RANKING.length - 1 && s.listBorder, r.isMe && s.rankRowMe]}
+                  style={[s.rankRow, i < weeklyRanking.length - 1 && s.listBorder, r.isMe && s.rankRowMe]}
                 >
                   <Text style={s.medal}>{r.medal}</Text>
                   <Text style={[s.rankName, r.isMe && s.rankNameMe]}>{r.isMe ? `나 (${nickname})` : r.name}</Text>
@@ -367,7 +470,8 @@ export function HomeScreen({ navigation }: Props) {
                   </View>
                 </View>
               ))}
-            </View>
+              </View>
+            )}
           </View>
 
           <View style={{ height: 8 }} />
@@ -399,7 +503,11 @@ const s = StyleSheet.create({
 
   /* Banner */
   bannerWrap: { borderRadius: 24, overflow: 'hidden', borderWidth: 2, borderColor: '#fbcfe8', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 8 },
-  slideTrack: { flexDirection: 'row', width: (W - 32) * 2, height: BANNER_H },
+  bannerPlaceholder: { height: BANNER_H, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  placeholderCard: { backgroundColor: '#f3f4f6', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14 },
+  placeholderTitle: { fontSize: 12, fontWeight: '800', color: '#9ca3af' },
+  slideTrack: { flexDirection: 'row', width: BANNER_W * 2, height: BANNER_H },
+  slidePane: { width: BANNER_W, height: BANNER_H, overflow: 'hidden' },
   slideImg: { position: 'absolute', top: 0, width: '100%', height: BANNER_H * 1.5 },
   slideOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: BANNER_H * 0.6 },
   slideText: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16 },
