@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ChevronLeft } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { ScreenBackground } from '../components/ScreenBackground';
@@ -31,8 +32,13 @@ export function CharacterSelectScreen({ navigation }: Props) {
         <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           {/* Header */}
           <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.header}>
-            <Text style={s.headerSub}>Character Select</Text>
-            <Text style={s.headerTitle}>✨ 나의 캐릭터를 선택하세요</Text>
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <ChevronLeft size={20} color="#fff" strokeWidth={2.5} />
+            </TouchableOpacity>
+            <View style={s.headerTextWrap}>
+              <Text style={s.headerSub}>Character Select</Text>
+              <Text style={s.headerTitle}>✨ 나의 캐릭터를 선택하세요</Text>
+            </View>
           </LinearGradient>
 
           <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -115,7 +121,9 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
   kav: { flex: 1 },
 
-  header: { paddingHorizontal: 24, paddingVertical: 16, alignItems: 'center', borderBottomWidth: 4, borderBottomColor: '#0284c7', gap: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 4, borderBottomColor: '#0284c7' },
+  backBtn: { width: 32, height: 32, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 16, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  headerTextWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 4 },
   headerSub: { fontSize: 10, color: '#fce7f3', letterSpacing: 3, textTransform: 'uppercase', fontWeight: '700' },
   headerTitle: { color: '#fff', fontWeight: '900', fontSize: 18, letterSpacing: -0.3, textAlign: 'center' },
 
