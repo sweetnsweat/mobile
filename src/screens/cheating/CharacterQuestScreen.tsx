@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, StatusBar, ActivityIndicator, Alert, Animated,
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Animated,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, RotateCcw, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Send, RotateCcw, Sparkles, Trophy, Star, Flame } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
@@ -19,6 +20,7 @@ import {
   StoryPlayResponse,
   StoryChoice,
 } from '../../services/StoryService';
+import { completeQuest } from '../../services/QuestService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CharacterQuest'>;
 
@@ -34,7 +36,7 @@ function resolveCharacterImage(url?: string): string {
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 
-type Role = 'character' | 'narration' | 'user' | 'system';
+type Role = 'character' | 'narration' | 'user' | 'system' | 'quest';
 
 interface ChatMessage {
   id: string;
@@ -43,6 +45,8 @@ interface ChatMessage {
   speaker?: string;
   sourceKey?: string;
   time?: string;
+  questId?: number;
+  questData?: any;
 }
 
 let _msgId = 0;
@@ -80,6 +84,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const [loading,       setLoading]       = useState(true);
   const [isRestarting,  setIsRestarting]  = useState(true);
   const [sending,       setSending]       = useState(false);
+  const [activeQuest,   setActiveQuest]   = useState<{ id: number; data: any } | null>(null);
+  const [completingQuest, setCompletingQuest] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -137,6 +143,13 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     setChoices(newChoices);
     setSelectedChoiceKey(null);
 
+    const questId = data.workout_quest_id;
+    const questData = data.workout_quest;
+    if (questId) {
+      setActiveQuest({ id: questId, data: questData ?? null });
+      setMessages(prev => [...prev, { id: msgId(), role: 'quest', text: '', questId, questData }]);
+    }
+
     if (data.is_chapter_completed && !data.is_story_completed) {
       pushMessage('system', '이 챕터가 완료되었습니다. 다음 챕터로 이동할 수 있습니다.');
     }
@@ -153,12 +166,17 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
   function applyStateOnly(data: StoryPlayResponse) {
     setStoryData(data);
-    const firstChar = data.dialogue?.[0] ?? data.opening_characters?.[0];
+    // restart:false 응답엔 dialogue/opening_characters가 없을 수 있어서 더 넓게 탐색
+    const firstChar =
+      data.dialogue?.[0] ??
+      data.opening_characters?.[0] ??
+      data.characters?.[0] ??
+      data.character;
     if (firstChar) {
       setCharacterMeta({
         name: firstChar.character_name ?? firstChar.name ?? '',
-        sub:  firstChar.representativeCharacterTitle ?? '',
-        img:  resolveCharacterImage(firstChar.character_image_url),
+        sub:  firstChar.representativeCharacterTitle ?? firstChar.title ?? '',
+        img:  resolveCharacterImage(firstChar.character_image_url ?? firstChar.image_url),
       });
     }
     setChoices(extractChoices(data));
@@ -188,6 +206,11 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
           speaker: item.character_name ?? undefined,
         }));
         setMessages(restored);
+        // 히스토리에서 캐릭터 이름 선 추출 (API 응답 전 헤더 채우기)
+        const firstCharItem = history.find(item => item.role === 'assistant' && item.character_name);
+        if (firstCharItem?.character_name) {
+          setCharacterMeta(prev => ({ ...prev, name: firstCharItem.character_name! }));
+        }
         // 현재 선택지·상태만 가져오기 (메시지 추가 없음)
         const data = await playStory({ scenario_id, restart: false });
         applyStateOnly(data);
@@ -278,6 +301,26 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     }
   }
 
+  // ── 퀘스트 완료 ──────────────────────────────────────────────────────────
+
+  async function handleQuestComplete() {
+    if (!activeQuest || completingQuest) return;
+    setCompletingQuest(true);
+    try {
+      const result = await completeQuest(activeQuest.id);
+      setActiveQuest(null);
+      const parts = [
+        result.rewardExp  ? `+${result.rewardExp} EXP`  : '',
+        result.rewardGold ? `+${result.rewardGold} 골드` : '',
+      ].filter(Boolean).join('  ');
+      pushMessage('system', `퀘스트 완료! 🎉${parts ? `  ${parts}` : ''}`);
+    } catch (e: any) {
+      pushMessage('system', `오류: ${e?.message ?? '퀘스트 완료 실패'}`);
+    } finally {
+      setCompletingQuest(false);
+    }
+  }
+
   // ── 처음부터 시작 확인 ────────────────────────────────────────────────────
 
   function confirmRestart() {
@@ -292,7 +335,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const isChapterCompleted = storyData?.is_chapter_completed && !storyData?.is_story_completed;
   const isStoryCompleted   = storyData?.is_story_completed;
   const hasChoices         = choices.length > 0;
-  const showTextInput      = !hasChoices && !isChapterCompleted && !isStoryCompleted;
+  const showTextInput      = !hasChoices && !isChapterCompleted && !isStoryCompleted && !activeQuest;
 
   function focusMessageInput() {
     if (!showTextInput || sending) return;
@@ -305,6 +348,10 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     <ScreenBackground>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <SafeAreaView style={s.safe}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={s.kav}
+        >
 
         {/* 헤더 */}
         <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.header}>
@@ -412,6 +459,12 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
                   onSubmitEditing={handleSend}
                   returnKeyType="send"
                   editable={!sending}
+                  showSoftInputOnFocus
+                  autoCapitalize="sentences"
+                  autoCorrect={false}
+                  keyboardType="default"
+                  textContentType="none"
+                  importantForAutofill="no"
                 />
                 <TouchableOpacity onPress={handleSend} disabled={!input.trim() || sending} style={s.sendBtnWrap}>
                   <LinearGradient
@@ -420,6 +473,19 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
                     style={s.sendBtn}
                   >
                     <Send size={18} color="#fff" strokeWidth={2} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {activeQuest && (
+              <View style={s.questCompleteArea}>
+                <TouchableOpacity onPress={handleQuestComplete} disabled={completingQuest} activeOpacity={0.85} style={s.questCompleteWrap}>
+                  <LinearGradient colors={['#facc15', '#ec4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.questCompleteBtn}>
+                    {completingQuest
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={s.questCompleteTxt}>💪 퀘스트 완료하기</Text>
+                    }
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -437,7 +503,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
             )}
           </>
         )}
-
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ScreenBackground>
   );
@@ -447,6 +513,91 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
 function MessageBubble({ message, characterImg }: { message: ChatMessage; characterImg: string }) {
   const sparkPulse = usePulseAnimation();
+  const starPulse  = usePulseAnimation();
+  const newPulse   = usePulseAnimation();
+
+  if (message.role === 'quest') {
+    const q = message.questData;
+    return (
+      <View style={s.questCardWrap}>
+        <View style={s.announcementWrap}>
+          <View style={s.announcement}>
+            <View style={s.sparkRow}>
+              <Animated.View style={{ opacity: sparkPulse }}>
+                <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
+              </Animated.View>
+              <Text style={s.announcementTitle}>퀘스트 발생!</Text>
+              <Animated.View style={{ opacity: sparkPulse }}>
+                <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
+              </Animated.View>
+            </View>
+            {q?.description && <Text style={s.announcementSub}>{q.description}</Text>}
+          </View>
+        </View>
+
+        <View style={s.questCard}>
+          <Animated.View style={[s.starRight, { opacity: starPulse }]}>
+            <Star size={24} color="#eab308" fill="#eab308" strokeWidth={2} />
+          </Animated.View>
+          <Animated.View style={[s.starLeft, { opacity: sparkPulse }]}>
+            <Star size={20} color="#ec4899" fill="#ec4899" strokeWidth={2} />
+          </Animated.View>
+
+          <LinearGradient colors={['#facc15', '#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.questCardHeader}>
+            <View style={s.questCardHeaderInner}>
+              <Trophy size={22} color="#fff" strokeWidth={2.5} />
+              <Text style={s.questCardHeaderTitle}>{q?.title ?? '운동 퀘스트'}</Text>
+            </View>
+            <Text style={s.questCardHeaderSub}>특별 퀘스트</Text>
+          </LinearGradient>
+
+          <View style={s.questDetails}>
+            {q?.targetValue != null && (
+              <View style={s.infoBadgeRow}>
+                <View style={[s.infoBadgeBlue, { flex: 0, paddingHorizontal: 20 }]}>
+                  <Flame size={18} color="#075985" strokeWidth={2.5} />
+                  <View style={s.infoBadgeText}>
+                    <Text style={s.infoBadgeTitleBlue}>{q.targetMetric ?? '목표'}</Text>
+                    <Text style={s.infoBadgeSubBlue}>{q.targetValue}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <LinearGradient colors={['#fef9c3', '#ffedd5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.rewardsBox}>
+              <View style={s.rewardsHeader}>
+                <Trophy size={18} color="#ca8a04" strokeWidth={2.5} />
+                <Text style={s.rewardsTitle}>퀘스트 보상</Text>
+                <Animated.View style={[s.newBadge, { opacity: newPulse }]}>
+                  <Text style={s.newBadgeTxt}>NEW!</Text>
+                </Animated.View>
+              </View>
+              <View style={s.rewardsGrid}>
+                {q?.rewardExp > 0 && (
+                  <View style={s.rewardYellow}>
+                    <Text style={s.rewardValYellow}>+{q.rewardExp}</Text>
+                    <Text style={s.rewardLblYellow}>EXP{'\n'}⭐</Text>
+                  </View>
+                )}
+                {q?.rewardGold > 0 && (
+                  <View style={s.rewardOrange}>
+                    <Text style={s.rewardValOrange}>+{q.rewardGold}</Text>
+                    <Text style={s.rewardLblOrange}>골드{'\n'}🪙</Text>
+                  </View>
+                )}
+                {q?.rewardCurrency > 0 && (
+                  <View style={s.rewardPink}>
+                    <Text style={s.rewardValPink}>+{q.rewardCurrency}</Text>
+                    <Text style={s.rewardLblPink}>재화{'\n'}💎</Text>
+                  </View>
+                )}
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (message.role === 'narration') {
     if (message.sourceKey === 'question_text') {
@@ -519,6 +670,7 @@ function MessageBubble({ message, characterImg }: { message: ChatMessage; charac
 
 const s = StyleSheet.create({
   safe: { flex: 1 },
+  kav: { flex: 1 },
 
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   backBtn: { width: 32, height: 32, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -590,4 +742,41 @@ chatScroll: { flex: 1 },
   textInput: { flex: 1, backgroundColor: '#f3f4f6', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8, fontSize: 14, borderWidth: 1, borderColor: '#d1d5db', color: '#111827', maxHeight: 80 },
   sendBtnWrap: { borderRadius: 20, overflow: 'hidden' },
   sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
+  // 퀘스트 카드
+  questCardWrap: { gap: 12 },
+  questCard: { backgroundColor: '#fefce8', borderRadius: 20, borderWidth: 3, borderColor: '#facc15', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10, position: 'relative' },
+  starRight: { position: 'absolute', top: 50, right: 10, zIndex: 10 },
+  starLeft:  { position: 'absolute', top: 54, left: 10, zIndex: 10 },
+  questCardHeader: { paddingHorizontal: 20, paddingVertical: 14, alignItems: 'center', gap: 4 },
+  questCardHeaderInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  questCardHeaderTitle: { color: '#fff', fontWeight: '800', fontSize: 17 },
+  questCardHeaderSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' },
+  questDetails: { padding: 16, gap: 12 },
+  infoBadgeRow: { flexDirection: 'row', gap: 10 },
+  infoBadgeBlue: { flex: 1, backgroundColor: '#e0f2fe', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 2, borderColor: '#38bdf8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  infoBadgeText: { alignItems: 'center' },
+  infoBadgeTitleBlue: { fontSize: 12, fontWeight: '700', color: '#075985' },
+  infoBadgeSubBlue: { fontSize: 10, color: '#0284c7' },
+  rewardsBox: { borderRadius: 14, padding: 14, borderWidth: 2, borderColor: '#facc15', gap: 10 },
+  rewardsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rewardsTitle: { fontSize: 15, fontWeight: '800', color: '#78350f', flex: 1 },
+  newBadge: { backgroundColor: '#ef4444', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  newBadgeTxt: { fontSize: 10, color: '#fff', fontWeight: '700' },
+  rewardsGrid: { flexDirection: 'row', gap: 8 },
+  rewardYellow: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: '#eab308' },
+  rewardValYellow: { fontSize: 18, fontWeight: '800', color: '#a16207' },
+  rewardLblYellow: { fontSize: 10, fontWeight: '700', color: '#ca8a04', textAlign: 'center' },
+  rewardOrange: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: '#f97316' },
+  rewardValOrange: { fontSize: 18, fontWeight: '800', color: '#c2410c' },
+  rewardLblOrange: { fontSize: 10, fontWeight: '700', color: '#ea580c', textAlign: 'center' },
+  rewardPink: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: '#ec4899' },
+  rewardValPink: { fontSize: 18, fontWeight: '800', color: '#be185d' },
+  rewardLblPink: { fontSize: 10, fontWeight: '700', color: '#ec4899', textAlign: 'center' },
+
+  // 퀘스트 완료 버튼
+  questCompleteArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#facc15', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
+  questCompleteWrap: { borderRadius: 12, overflow: 'hidden' },
+  questCompleteBtn: { paddingVertical: 15, alignItems: 'center', borderRadius: 12 },
+  questCompleteTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });
