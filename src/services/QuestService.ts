@@ -30,10 +30,12 @@ export interface QuestResponse {
   sourceSessionId: number | null;
   sessionName: string | null;
   sessionType: string | null;
+  sessionTypeDisplayName: string | null;
   conditionScore: number | null;
   exerciseMultiplier: number | null;
   rewardCurrency: number;
   rewardExp: number;
+  rewardGold: number | null;
   completedAt: string | null;
   exercises: QuestExercise[];
 }

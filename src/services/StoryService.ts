@@ -16,6 +16,14 @@ export interface StoryChoice {
   [key: string]: any;
 }
 
+export interface DialogueItem {
+  character_image_url?: string;
+  character_name?: string;
+  name?: string;
+  dialogue?: string;
+  representativeCharacterTitle?: string;
+}
+
 export interface StoryPlayResponse {
   scenario_id?: number;
   chapter_num?: number;
@@ -24,6 +32,8 @@ export interface StoryPlayResponse {
   total_units?: number;
   is_chapter_completed?: boolean;
   is_story_completed?: boolean;
+  dialogue?: DialogueItem[];
+  opening_characters?: DialogueItem[];
   [key: string]: any;
 }
 
@@ -33,38 +43,27 @@ function authHeader(): Record<string, string> {
   return { Authorization: `Bearer ${auth.accessToken}` };
 }
 
-async function post(path: string, req: StoryPlayRequest): Promise<StoryPlayResponse> {
+export async function playStory(req: StoryPlayRequest): Promise<StoryPlayResponse> {
   const response = await axios.post<{ data: StoryPlayResponse }>(
-    `${BASE_URL}${path}`,
+    `${BASE_URL}/stories/play`,
     req,
     { headers: { 'Content-Type': 'application/json', ...authHeader() } },
   );
   return response.data.data;
 }
 
-// 통합 진행 (기본 엔드포인트)
-export async function playStory(req: StoryPlayRequest): Promise<StoryPlayResponse> {
-  return post('/stories/play', req);
+export interface HistoryItem {
+  role: string;
+  character_name: string | null;
+  content: string;
 }
 
-// 처음부터 시작
-export async function startStory(req: StoryPlayRequest): Promise<StoryPlayResponse> {
-  return post('/stories/play/start', req);
-}
-
-// 현재 흐름 이어가기
-export async function continueStory(req: StoryPlayRequest): Promise<StoryPlayResponse> {
-  return post('/stories/play/continue', req);
-}
-
-// 선택지 선택
-export async function chooseStory(req: StoryPlayRequest): Promise<StoryPlayResponse> {
-  return post('/stories/play/choose', req);
-}
-
-// 다음 챕터 이동
-export async function nextChapter(req: StoryPlayRequest): Promise<StoryPlayResponse> {
-  return post('/stories/play/next-chapter', req);
+export async function fetchStoryHistory(scenario_id: number): Promise<HistoryItem[]> {
+  const response = await axios.get<{ data: { items: HistoryItem[] } }>(
+    `${BASE_URL}/stories/play/history`,
+    { params: { scenario_id }, headers: authHeader() },
+  );
+  return response.data.data.items ?? [];
 }
 
 export type StoryTextType = 'narration' | 'dialogue';
@@ -72,35 +71,47 @@ export type StoryTextType = 'narration' | 'dialogue';
 export interface StoryText {
   text: string;
   type: StoryTextType;
+  sourceKey?: string;
 }
 
 // dialogue 전용 필드 — 캐릭터 말풍선으로 표시
 const DIALOGUE_FIELDS = ['dialogue', 'speech', 'character_speech', 'character_dialogue'];
 // narration 전용 필드 — 회색 배경 나레이션으로 표시
-const NARRATION_FIELDS = ['narration', 'narrative', 'scene_text', 'description', 'narration_text', 'story_text', 'chapter_text'];
+const NARRATION_FIELDS = ['opening_summary', 'narration', 'question_text', 'narrative', 'scene_text', 'description', 'narration_text', 'story_text', 'chapter_text'];
 // 판단 불가 필드 — phase 기준으로 분류, 기본은 narration
 const AMBIGUOUS_FIELDS = ['content', 'text', 'message', 'response_text'];
 
 const DIALOGUE_PHASES = new Set(['DIALOGUE', 'SPEECH']);
 
 export function extractStoryText(data: StoryPlayResponse): StoryText | null {
-  for (const key of DIALOGUE_FIELDS) {
-    if (typeof data[key] === 'string' && data[key].trim()) {
-      return { text: data[key], type: 'dialogue' };
-    }
+  return extractStoryTexts(data)[0] ?? null;
+}
+
+export function extractStoryTexts(data: StoryPlayResponse): StoryText[] {
+  const texts: StoryText[] = [];
+  const seen = new Set<string>();
+
+  function addText(type: StoryTextType, value: unknown, sourceKey: string) {
+    if (typeof value !== 'string') return;
+    const text = value.trim();
+    if (!text || seen.has(`${sourceKey}:${text}`)) return;
+    seen.add(`${sourceKey}:${text}`);
+    texts.push({ text, type, sourceKey });
   }
+
   for (const key of NARRATION_FIELDS) {
-    if (typeof data[key] === 'string' && data[key].trim()) {
-      return { text: data[key], type: 'narration' };
-    }
+    addText('narration', data[key], key);
+  }
+  for (const key of DIALOGUE_FIELDS) {
+    addText('dialogue', data[key], key);
   }
   for (const key of AMBIGUOUS_FIELDS) {
     if (typeof data[key] === 'string' && data[key].trim()) {
       const type = data.phase && DIALOGUE_PHASES.has(data.phase) ? 'dialogue' : 'narration';
-      return { text: data[key], type };
+      addText(type, data[key], key);
     }
   }
-  return null;
+  return texts;
 }
 
 // 하위 호환용 — 텍스트만 필요할 때
@@ -116,10 +127,45 @@ export function extractChoices(data: StoryPlayResponse): StoryChoice[] {
     if (Array.isArray(val) && val.length > 0) {
       return val.map((c: any, i: number) => ({
         id: c.id ?? c.choice_id ?? i + 1,
-        text: c.text ?? c.content ?? c.label ?? String(c),
+        text: extractChoiceText(c, i),
         ...c,
       }));
     }
   }
   return [];
+}
+
+function extractChoiceText(choice: any, index: number): string {
+  const candidates = [
+    choice?.text,
+    choice?.choice_text,
+    choice?.option_text,
+    choice?.label,
+    choice?.content,
+    choice?.message,
+    choice?.title,
+    choice?.description,
+  ];
+
+  for (const candidate of candidates) {
+    const text = stringifyChoiceValue(candidate);
+    if (text) return text;
+  }
+
+  const wholeChoiceText = stringifyChoiceValue(choice);
+  return wholeChoiceText || `선택지 ${index + 1}`;
+}
+
+function stringifyChoiceValue(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (!value || typeof value !== 'object') return '';
+
+  const obj = value as Record<string, unknown>;
+  const nestedKeys = ['text', 'choice_text', 'option_text', 'label', 'content', 'message', 'title', 'description'];
+  for (const key of nestedKeys) {
+    const nestedText = stringifyChoiceValue(obj[key]);
+    if (nestedText) return nestedText;
+  }
+  return '';
 }
