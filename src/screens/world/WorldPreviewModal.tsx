@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Pressable,
   ScrollView, ActivityIndicator, Image, Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -49,8 +49,9 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={s.card} activeOpacity={1} onPress={() => {}}>
+      <View style={s.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={s.card}>
 
           {/* Hero image */}
           <View style={s.hero}>
@@ -90,6 +91,7 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
             contentContainerStyle={s.bodyContent}
             showsVerticalScrollIndicator={false}
             bounces={false}
+            nestedScrollEnabled
           >
             {loading && (
               <View style={s.loadingWrap}>
@@ -171,6 +173,7 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={s.charScroll}
+                      nestedScrollEnabled
                     >
                       {data.characters.map(c => {
                         const isSelected = (c.id != null && c.id === selectedChar?.id) ||
@@ -243,8 +246,8 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
               </View>
             </View>
           )}
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }
