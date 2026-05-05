@@ -25,6 +25,7 @@ import {
   WorldRankingItem,
 } from '../services/HomeService';
 import { RoutineDetailModal } from './RoutineDetailModal';
+import { WorldPreviewModal } from './WorldPreviewModal';
 
 const { width: W } = Dimensions.get('window');
 
@@ -100,9 +101,10 @@ const WORLD_RANK_COLORS: Record<number, [string, string]> = {
   3: ['#fdba74', '#fb7185'],
 };
 
-type HomeSlide = { src: string; name: string; quote: string };
+type HomeSlide = { src: string; name: string; quote: string; scenarioId: number };
 type HomeWorldRank = {
   rank: number;
+  scenarioId: number;
   name: string;
   score: number;
   img: string;
@@ -119,6 +121,7 @@ function mapBannerSlide(slide: WorldBannerSlide): HomeSlide {
   ].filter(Boolean).join(' ');
 
   return {
+    scenarioId: slide.scenarioId,
     src: resolveMediaUrl(slide.backgroundImageUrl || slide.imageUrl),
     name: representativeLabel || slide.headline || slide.worldTitle,
     quote: slide.quote || slide.summary || slide.genre || slide.worldTitle,
@@ -128,6 +131,7 @@ function mapBannerSlide(slide: WorldBannerSlide): HomeSlide {
 function mapWorldRank(item: WorldRankingItem): HomeWorldRank {
   return {
     rank: item.rank,
+    scenarioId: item.scenarioId,
     name: item.displayName || item.worldTitle,
     score: item.score,
     img: resolveMediaUrl(item.imageUrl),
@@ -160,6 +164,7 @@ export function HomeScreen({ navigation }: Props) {
   const [todayRoutine, setTodayRoutine] = useState<TodayRoutineResponse | null>(null);
   const [todayRoutineLoading, setTodayRoutineLoading] = useState(false);
   const [routineModalVisible, setRoutineModalVisible] = useState(false);
+  const [previewScenarioId, setPreviewScenarioId] = useState<number | null>(null);
 
   const nextIndex = slides.length > 0 ? (slide + 1) % slides.length : 0;
 
@@ -282,22 +287,22 @@ export function HomeScreen({ navigation }: Props) {
             ) : (
               <>
                 <Animated.View style={[s.slideTrack, { transform: [{ translateX: slideAnim }] }]}>
-                  <View style={s.slidePane}>
+                  <TouchableOpacity activeOpacity={0.92} style={s.slidePane} onPress={() => setPreviewScenarioId(slides[slide].scenarioId)}>
                     <ImageWithFallback uri={slides[slide].src} style={s.slideImg} />
                     <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.slideOverlay} />
                     <View style={s.slideText}>
                       <Text style={s.slideName}>{slides[slide].name}</Text>
                       <Text style={s.slideQuote}>"{slides[slide].quote}"</Text>
                     </View>
-                  </View>
-                  <View style={s.slidePane}>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.92} style={s.slidePane} onPress={() => setPreviewScenarioId(slides[nextIndex].scenarioId)}>
                     <ImageWithFallback uri={slides[nextIndex].src} style={s.slideImg} />
                     <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={s.slideOverlay} />
                     <View style={s.slideText}>
                       <Text style={s.slideName}>{slides[nextIndex].name}</Text>
                       <Text style={s.slideQuote}>"{slides[nextIndex].quote}"</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 </Animated.View>
                 <View style={s.dots}>
                   {slides.map((_, i) => (
@@ -328,7 +333,7 @@ export function HomeScreen({ navigation }: Props) {
               <>
             <View style={s.podium}>
               {/* 2위 */}
-              <View style={s.podiumItem}>
+              <TouchableOpacity style={s.podiumItem} activeOpacity={0.8} onPress={() => setPreviewScenarioId(worldRanking[1].scenarioId)}>
                 <View style={[s.podiumImg, { width: 48, height: 48, borderColor: '#d1d5db' }]}>
                   {worldRanking[1].img ? (
                     <Image source={{ uri: worldRanking[1].img }} style={s.podiumImgInner} resizeMode="cover" />
@@ -339,9 +344,9 @@ export function HomeScreen({ navigation }: Props) {
                   <Text style={s.podiumName} numberOfLines={1}>{worldRanking[1].name}</Text>
                   <Text style={s.podiumScore}>{worldRanking[1].score.toLocaleString()}</Text>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
               {/* 1위 */}
-              <View style={[s.podiumItem, { marginTop: -12 }]}>
+              <TouchableOpacity style={[s.podiumItem, { marginTop: -12 }]} activeOpacity={0.8} onPress={() => setPreviewScenarioId(worldRanking[0].scenarioId)}>
                 <Text style={s.crown}>👑</Text>
                 <View style={[s.podiumImg, { width: 56, height: 56, borderColor: '#facc15' }]}>
                   {worldRanking[0].img ? (
@@ -353,9 +358,9 @@ export function HomeScreen({ navigation }: Props) {
                   <Text style={s.podiumName} numberOfLines={1}>{worldRanking[0].name}</Text>
                   <Text style={s.podiumScore}>{worldRanking[0].score.toLocaleString()}</Text>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
               {/* 3위 */}
-              <View style={s.podiumItem}>
+              <TouchableOpacity style={s.podiumItem} activeOpacity={0.8} onPress={() => setPreviewScenarioId(worldRanking[2].scenarioId)}>
                 <View style={[s.podiumImg, { width: 48, height: 48, borderColor: '#fdba74' }]}>
                   {worldRanking[2].img ? (
                     <Image source={{ uri: worldRanking[2].img }} style={s.podiumImgInner} resizeMode="cover" />
@@ -366,13 +371,13 @@ export function HomeScreen({ navigation }: Props) {
                   <Text style={s.podiumName} numberOfLines={1}>{worldRanking[2].isMe ? nickname : worldRanking[2].name}</Text>
                   <Text style={s.podiumScore}>{worldRanking[2].score.toLocaleString()}</Text>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* 4-5위 */}
             <View style={s.listCard}>
               {worldRanking.slice(3).map((r, i) => (
-                <View key={r.rank} style={[s.listRow, i < worldRanking.slice(3).length - 1 && s.listBorder]}>
+                <TouchableOpacity key={r.rank} activeOpacity={0.8} onPress={() => setPreviewScenarioId(r.scenarioId)} style={[s.listRow, i < worldRanking.slice(3).length - 1 && s.listBorder]}>
                   <Text style={s.listRank}>{r.rank}</Text>
                   <View style={s.listAvatar}>
                     {r.img ? (
@@ -387,7 +392,7 @@ export function HomeScreen({ navigation }: Props) {
                     <Flame size={12} color="#fb923c" strokeWidth={2.5} />
                     <Text style={s.listScoreTxt}>{r.score.toLocaleString()}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
               </>
@@ -502,6 +507,17 @@ export function HomeScreen({ navigation }: Props) {
         visible={routineModalVisible}
         routine={todayRoutine}
         onClose={() => setRoutineModalVisible(false)}
+      />
+      <WorldPreviewModal
+        scenarioId={previewScenarioId}
+        onClose={() => setPreviewScenarioId(null)}
+        onEnter={() => {
+          const scenarioId = previewScenarioId;
+          setPreviewScenarioId(null);
+          if (scenarioId != null) {
+            navigation.navigate('CharacterQuest', { scenario_id: scenarioId });
+          }
+        }}
       />
     </ScreenBackground>
   );

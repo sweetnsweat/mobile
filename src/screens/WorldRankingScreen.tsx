@@ -299,7 +299,13 @@ export function WorldRankingScreen({ navigation }: Props) {
       <WorldPreviewModal
         scenarioId={previewId}
         onClose={() => setPreviewId(null)}
-        onEnter={() => { setPreviewId(null); navigation.navigate('CharacterSelect'); }}
+        onEnter={() => {
+          const scenarioId = previewId;
+          setPreviewId(null);
+          if (scenarioId != null) {
+            navigation.navigate('CharacterQuest', { scenario_id: scenarioId });
+          }
+        }}
       />
     </ScreenBackground>
   );
