@@ -258,9 +258,9 @@ export function HomeScreen({ navigation }: Props) {
             <Text style={s.greeting}>{greeting}</Text>
             <Text style={s.title}>{nickname}의 도전 🔥</Text>
           </View>
-          <TouchableOpacity style={s.menuBtn}>
+          {/* <TouchableOpacity style={s.menuBtn}>
             <Menu size={16} color="#4b5563" strokeWidth={2.5} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Search bar */}
