@@ -296,7 +296,11 @@ export function WorldRankingScreen({ navigation }: Props) {
         <BottomNav active="home" navigation={navigation} />
       </SafeAreaView>
 
-      <WorldPreviewModal scenarioId={previewId} onClose={() => setPreviewId(null)} />
+      <WorldPreviewModal
+        scenarioId={previewId}
+        onClose={() => setPreviewId(null)}
+        onEnter={() => { setPreviewId(null); navigation.navigate('CharacterSelect'); }}
+      />
     </ScreenBackground>
   );
 }

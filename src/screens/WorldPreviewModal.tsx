@@ -14,6 +14,7 @@ const HERO_H = 200;
 interface Props {
   scenarioId: number | null;
   onClose: () => void;
+  onEnter?: () => void;
 }
 
 function progressBadge(entry: WorldPreviewData['entry']): { label: string; bg: string; color: string } | null {
@@ -23,7 +24,7 @@ function progressBadge(entry: WorldPreviewData['entry']): { label: string; bg: s
   return null;
 }
 
-export function WorldPreviewModal({ scenarioId, onClose }: Props) {
+export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
   const [data, setData] = useState<WorldPreviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedChar, setSelectedChar] = useState<WorldPreviewData['representativeCharacter']>(null);
@@ -225,16 +226,21 @@ export function WorldPreviewModal({ scenarioId, onClose }: Props) {
               ) : (
                 <View />
               )}
-              <TouchableOpacity style={s.closeFooterBtn} onPress={onClose} activeOpacity={0.85}>
-                <LinearGradient
-                  colors={['#ec4899', '#f472b6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={s.closeFooterGrad}
-                >
+              <View style={s.footerBtns}>
+                <TouchableOpacity style={s.closeFooterBtn} onPress={onClose} activeOpacity={0.85}>
                   <Text style={s.closeFooterTxt}>닫기</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.enterBtn} onPress={onEnter} activeOpacity={0.85}>
+                  <LinearGradient
+                    colors={['#ec4899', '#0ea5e9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={s.enterGrad}
+                  >
+                    <Text style={s.enterTxt}>입장하기</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </TouchableOpacity>
@@ -387,7 +393,10 @@ const s = StyleSheet.create({
   },
   statusBadge: { borderRadius: 99, paddingHorizontal: 12, paddingVertical: 6 },
   statusTxt: { fontSize: 12, fontWeight: '800' },
-  closeFooterBtn: { borderRadius: 14, overflow: 'hidden' },
-  closeFooterGrad: { paddingHorizontal: 24, paddingVertical: 10, alignItems: 'center' },
-  closeFooterTxt: { fontSize: 13, fontWeight: '800', color: '#fff' },
+  footerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  closeFooterBtn: { paddingHorizontal: 16, paddingVertical: 10 },
+  closeFooterTxt: { fontSize: 13, fontWeight: '700', color: '#9ca3af' },
+  enterBtn: { borderRadius: 14, overflow: 'hidden' },
+  enterGrad: { paddingHorizontal: 24, paddingVertical: 10, alignItems: 'center' },
+  enterTxt: { fontSize: 13, fontWeight: '800', color: '#fff' },
 });
