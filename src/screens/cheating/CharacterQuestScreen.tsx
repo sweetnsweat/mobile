@@ -140,14 +140,16 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
       });
     }
 
-    setChoices(newChoices);
-    setSelectedChoiceKey(null);
-
     const questId = data.workout_quest_id;
     const questData = data.workout_quest;
     if (questId) {
+      setChoices([]);
+      setSelectedChoiceKey(null);
       setActiveQuest({ id: questId, data: questData ?? null });
       setMessages(prev => [...prev, { id: msgId(), role: 'quest', text: '', questId, questData }]);
+    } else {
+      setChoices(newChoices);
+      setSelectedChoiceKey(null);
     }
 
     if (data.is_chapter_completed && !data.is_story_completed) {
@@ -520,6 +522,7 @@ function MessageBubble({ message, characterImg }: { message: ChatMessage; charac
     const q = message.questData;
     return (
       <View style={s.questCardWrap}>
+        {/* 퀘스트 발생 알림 */}
         <View style={s.announcementWrap}>
           <View style={s.announcement}>
             <View style={s.sparkRow}>
@@ -531,7 +534,7 @@ function MessageBubble({ message, characterImg }: { message: ChatMessage; charac
                 <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
               </Animated.View>
             </View>
-            {q?.description && <Text style={s.announcementSub}>{q.description}</Text>}
+            {q?.mission_text && <Text style={s.announcementSub}>{q.mission_text}</Text>}
           </View>
         </View>
 
@@ -543,56 +546,51 @@ function MessageBubble({ message, characterImg }: { message: ChatMessage; charac
             <Star size={20} color="#ec4899" fill="#ec4899" strokeWidth={2} />
           </Animated.View>
 
+          {/* 헤더 — 퀘스트 이름 */}
           <LinearGradient colors={['#facc15', '#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.questCardHeader}>
             <View style={s.questCardHeaderInner}>
               <Trophy size={22} color="#fff" strokeWidth={2.5} />
-              <Text style={s.questCardHeaderTitle}>{q?.title ?? '운동 퀘스트'}</Text>
+              <Text style={s.questCardHeaderTitle} numberOfLines={2}>{q?.quest_name ?? '운동 퀘스트'}</Text>
             </View>
             <Text style={s.questCardHeaderSub}>특별 퀘스트</Text>
           </LinearGradient>
 
           <View style={s.questDetails}>
-            {q?.targetValue != null && (
-              <View style={s.infoBadgeRow}>
-                <View style={[s.infoBadgeBlue, { flex: 0, paddingHorizontal: 20 }]}>
+            {/* 운동 종목 + 목표 배지 */}
+            <View style={s.infoBadgeRow}>
+              {q?.exercise_name && (
+                <View style={s.infoBadgeBlue}>
                   <Flame size={18} color="#075985" strokeWidth={2.5} />
                   <View style={s.infoBadgeText}>
-                    <Text style={s.infoBadgeTitleBlue}>{q.targetMetric ?? '목표'}</Text>
-                    <Text style={s.infoBadgeSubBlue}>{q.targetValue}</Text>
+                    <Text style={s.infoBadgeTitleBlue}>운동</Text>
+                    <Text style={s.infoBadgeSubBlue}>{q.exercise_name}</Text>
                   </View>
                 </View>
+              )}
+              {q?.target && (
+                <View style={s.infoBadgePink}>
+                  <Text style={s.infoBadgeTitlePink}>목표</Text>
+                  <Text style={s.infoBadgeSubPink}>{q.target}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* 스토리 이유 */}
+            {q?.story_reason && (
+              <View style={s.storyReasonBox}>
+                <Text style={s.storyReasonTxt}>📖 {q.story_reason}</Text>
               </View>
             )}
 
-            <LinearGradient colors={['#fef9c3', '#ffedd5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.rewardsBox}>
-              <View style={s.rewardsHeader}>
-                <Trophy size={18} color="#ca8a04" strokeWidth={2.5} />
-                <Text style={s.rewardsTitle}>퀘스트 보상</Text>
-                <Animated.View style={[s.newBadge, { opacity: newPulse }]}>
-                  <Text style={s.newBadgeTxt}>NEW!</Text>
-                </Animated.View>
+            {/* 보상 */}
+            <View style={s.rewardRow}>
+              <View style={s.rewardChip}>
+                <Text style={s.rewardChipTxt}>⭐ EXP +200</Text>
               </View>
-              <View style={s.rewardsGrid}>
-                {q?.rewardExp > 0 && (
-                  <View style={s.rewardYellow}>
-                    <Text style={s.rewardValYellow}>+{q.rewardExp}</Text>
-                    <Text style={s.rewardLblYellow}>EXP{'\n'}⭐</Text>
-                  </View>
-                )}
-                {q?.rewardGold > 0 && (
-                  <View style={s.rewardOrange}>
-                    <Text style={s.rewardValOrange}>+{q.rewardGold}</Text>
-                    <Text style={s.rewardLblOrange}>골드{'\n'}🪙</Text>
-                  </View>
-                )}
-                {q?.rewardCurrency > 0 && (
-                  <View style={s.rewardPink}>
-                    <Text style={s.rewardValPink}>+{q.rewardCurrency}</Text>
-                    <Text style={s.rewardLblPink}>재화{'\n'}💎</Text>
-                  </View>
-                )}
+              <View style={s.rewardChip}>
+                <Text style={s.rewardChipTxt}>🪙 Coin +300</Text>
               </View>
-            </LinearGradient>
+            </View>
           </View>
         </View>
       </View>
@@ -755,24 +753,17 @@ chatScroll: { flex: 1 },
   questDetails: { padding: 16, gap: 12 },
   infoBadgeRow: { flexDirection: 'row', gap: 10 },
   infoBadgeBlue: { flex: 1, backgroundColor: '#e0f2fe', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 2, borderColor: '#38bdf8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  infoBadgePink: { flex: 1, backgroundColor: '#fce7f3', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 2, borderColor: '#f9a8d4', alignItems: 'center', justifyContent: 'center' },
   infoBadgeText: { alignItems: 'center' },
   infoBadgeTitleBlue: { fontSize: 12, fontWeight: '700', color: '#075985' },
-  infoBadgeSubBlue: { fontSize: 10, color: '#0284c7' },
-  rewardsBox: { borderRadius: 14, padding: 14, borderWidth: 2, borderColor: '#facc15', gap: 10 },
-  rewardsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rewardsTitle: { fontSize: 15, fontWeight: '800', color: '#78350f', flex: 1 },
-  newBadge: { backgroundColor: '#ef4444', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
-  newBadgeTxt: { fontSize: 10, color: '#fff', fontWeight: '700' },
-  rewardsGrid: { flexDirection: 'row', gap: 8 },
-  rewardYellow: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: '#eab308' },
-  rewardValYellow: { fontSize: 18, fontWeight: '800', color: '#a16207' },
-  rewardLblYellow: { fontSize: 10, fontWeight: '700', color: '#ca8a04', textAlign: 'center' },
-  rewardOrange: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: '#f97316' },
-  rewardValOrange: { fontSize: 18, fontWeight: '800', color: '#c2410c' },
-  rewardLblOrange: { fontSize: 10, fontWeight: '700', color: '#ea580c', textAlign: 'center' },
-  rewardPink: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: '#ec4899' },
-  rewardValPink: { fontSize: 18, fontWeight: '800', color: '#be185d' },
-  rewardLblPink: { fontSize: 10, fontWeight: '700', color: '#ec4899', textAlign: 'center' },
+  infoBadgeSubBlue: { fontSize: 11, color: '#0284c7', fontWeight: '600' },
+  infoBadgeTitlePink: { fontSize: 12, fontWeight: '700', color: '#9d174d' },
+  infoBadgeSubPink: { fontSize: 11, color: '#ec4899', fontWeight: '600' },
+  storyReasonBox: { backgroundColor: 'rgba(107,114,128,0.1)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderLeftWidth: 3, borderLeftColor: '#facc15' },
+  storyReasonTxt: { fontSize: 13, color: '#4b5563', lineHeight: 20, fontStyle: 'italic' },
+  rewardRow: { flexDirection: 'row', gap: 8 },
+  rewardChip: { flex: 1, backgroundColor: '#fef9c3', borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 2, borderColor: '#facc15' },
+  rewardChipTxt: { fontSize: 13, fontWeight: '700', color: '#a16207' },
 
   // 퀘스트 완료 버튼
   questCompleteArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#facc15', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
