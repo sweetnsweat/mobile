@@ -8,12 +8,12 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Lock, User, ArrowRight, Dumbbell, Heart, Zap } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { GradientText } from '../components/GradientText';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { useBounceAnimation } from '../hooks/useBounceAnimation';
-import { login, signup } from '../services/AuthService';
-import { getMyProfile } from '../services/UserService';
+import { RootStackParamList } from '../../types/navigation';
+import { GradientText } from '../../components/GradientText';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { useBounceAnimation } from '../../hooks/useBounceAnimation';
+import { login, signup } from '../../services/AuthService';
+import { getMyProfile } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
 

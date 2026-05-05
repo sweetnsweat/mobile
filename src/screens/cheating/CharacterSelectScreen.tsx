@@ -7,10 +7,10 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { ImageWithFallback } from '../components/ImageWithFallback';
-import { GradientText } from '../components/GradientText';
+import { RootStackParamList } from '../../types/navigation';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { GradientText } from '../../components/GradientText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CharacterSelect'>;
 

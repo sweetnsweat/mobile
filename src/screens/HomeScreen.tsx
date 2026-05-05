@@ -24,8 +24,8 @@ import {
   WorldBannerSlide,
   WorldRankingItem,
 } from '../services/HomeService';
-import { RoutineDetailModal } from './RoutineDetailModal';
-import { WorldPreviewModal } from './WorldPreviewModal';
+import { RoutineDetailModal } from './routine/RoutineDetailModal';
+import { WorldPreviewModal } from './world/WorldPreviewModal';
 
 const { width: W } = Dimensions.get('window');
 

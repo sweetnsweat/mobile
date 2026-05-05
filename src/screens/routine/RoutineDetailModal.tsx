@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { X, CalendarDays, Dumbbell, Clock, CheckCircle, Coffee } from 'lucide-react-native';
-import { RoutineItemResponse, TodayRoutineResponse } from '../services/RoutineService';
+import { RoutineItemResponse, TodayRoutineResponse } from '../../services/RoutineService';
 
 const SESSION_TYPE_LABEL: Record<string, string> = {
   full_body: '전신',

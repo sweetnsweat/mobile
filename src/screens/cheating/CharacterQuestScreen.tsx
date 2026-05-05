@@ -7,10 +7,10 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Send, RotateCcw, Sparkles } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ImageWithFallback } from '../components/ImageWithFallback';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { usePulseAnimation } from '../hooks/usePulseAnimation';
+import { RootStackParamList } from '../../types/navigation';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { usePulseAnimation } from '../../hooks/usePulseAnimation';
 import {
   playStory,
   fetchStoryHistory,
@@ -18,7 +18,7 @@ import {
   extractChoices,
   StoryPlayResponse,
   StoryChoice,
-} from '../services/StoryService';
+} from '../../services/StoryService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CharacterQuest'>;
 

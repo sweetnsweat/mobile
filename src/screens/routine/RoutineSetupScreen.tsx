@@ -7,15 +7,15 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Star, Dumbbell, Clock, ChevronRight, ChevronLeft, CheckCircle } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { GradientText } from '../components/GradientText';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { useBounceAnimation } from '../hooks/useBounceAnimation';
+import { RootStackParamList } from '../../types/navigation';
+import { GradientText } from '../../components/GradientText';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { useBounceAnimation } from '../../hooks/useBounceAnimation';
 import {
   getRecommendations,
   activateRoutine,
   RoutineRecommendationResponse,
-} from '../services/RoutineService';
+} from '../../services/RoutineService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoutineSetup'>;
 

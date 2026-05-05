@@ -6,12 +6,12 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LineChart, BarChart } from 'react-native-chart-kit';
-import { Dumbbell, MessageCircle, TrendingUp, Heart, Zap, BarChart3, Activity, Calendar, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Dumbbell, MessageCircle, TrendingUp, Heart, Zap, BarChart3, Activity, Calendar, Sparkles } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { GradientText } from '../components/GradientText';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { useBounceAnimation } from '../hooks/useBounceAnimation';
+import { RootStackParamList } from '../../types/navigation';
+import { GradientText } from '../../components/GradientText';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { useBounceAnimation } from '../../hooks/useBounceAnimation';
 
 const { width: W } = Dimensions.get('window');
 const CHART_W = W - 64;
@@ -105,6 +105,13 @@ export function StatisticsScreen({ navigation }: Props) {
 
       <SafeAreaView style={s.safe}>
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          <View style={s.topBar}>
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <ChevronLeft size={20} color="#111827" strokeWidth={3} />
+            </TouchableOpacity>
+            <Text style={s.topBarTitle}>통계</Text>
+          </View>
+
           {/* Header */}
           <View style={s.header}>
             <View style={s.logoRow}>
@@ -285,6 +292,9 @@ const s = StyleSheet.create({
   fZap:   { position: 'absolute', bottom: 160, left: 24 },
   fTrend: { position: 'absolute', bottom: 192, right: 32 },
 
+  topBar: { width: '100%', maxWidth: 600, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  topBarTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
   header: { alignItems: 'center', marginBottom: 24, gap: 8 },
   logoRow: { flexDirection: 'row', gap: 12 },
   appTitle: { fontSize: 30, fontWeight: '700' },

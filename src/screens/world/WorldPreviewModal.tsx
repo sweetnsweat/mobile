@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { X, Flame, Users, Star } from 'lucide-react-native';
-import { getWorldPreview, WorldPreviewData, resolveMediaUrl } from '../services/HomeService';
-import { ImageWithFallback } from '../components/ImageWithFallback';
+import { getWorldPreview, WorldPreviewData, resolveMediaUrl } from '../../services/HomeService';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const HERO_H = 200;

@@ -7,11 +7,11 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Trash2, CheckCircle } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { getFavoriteExercises, ExerciseListItem } from '../services/ExerciseService';
-import { createCustomRoutine } from '../services/RoutineService';
-import { getMyProfile } from '../services/UserService';
+import { RootStackParamList } from '../../types/navigation';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { getFavoriteExercises, ExerciseListItem } from '../../services/ExerciseService';
+import { createCustomRoutine } from '../../services/RoutineService';
+import { getMyProfile } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoutineCreate'>;
 

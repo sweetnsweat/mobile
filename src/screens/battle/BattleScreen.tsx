@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-nativ
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ImageWithFallback } from '../components/ImageWithFallback';
-import { ScreenBackground } from '../components/ScreenBackground';
+import { RootStackParamList } from '../../types/navigation';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { ScreenBackground } from '../../components/ScreenBackground';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Battle'>;
 

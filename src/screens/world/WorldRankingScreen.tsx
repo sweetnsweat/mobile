@@ -8,11 +8,11 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Flame, Crown, Search } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { BottomNav } from '../components/BottomNav';
-import { ImageWithFallback } from '../components/ImageWithFallback';
-import { WorldRankingDetailItem, getFullWorldRankings, resolveMediaUrl } from '../services/HomeService';
+import { RootStackParamList } from '../../types/navigation';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { BottomNav } from '../../components/BottomNav';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { WorldRankingDetailItem, getFullWorldRankings, resolveMediaUrl } from '../../services/HomeService';
 import { WorldPreviewModal } from './WorldPreviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorldRanking'>;

@@ -12,13 +12,13 @@ import {
   Heart, Settings,
 } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { BottomNav } from '../components/BottomNav';
-import { ImageWithFallback } from '../components/ImageWithFallback';
-import { logout, getStoredAuth, clearStoredAuth } from '../services/AuthService';
-import { getMyProfile } from '../services/UserService';
-import { getWeeklyStats, WeeklyStatsResponse } from '../services/StatsService';
+import { RootStackParamList } from '../../types/navigation';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { BottomNav } from '../../components/BottomNav';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { logout, getStoredAuth, clearStoredAuth } from '../../services/AuthService';
+import { getMyProfile } from '../../services/UserService';
+import { getWeeklyStats, WeeklyStatsResponse } from '../../services/StatsService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
 

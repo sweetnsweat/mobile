@@ -7,8 +7,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Dumbbell, Wifi, Battery, Signal } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ImageWithFallback } from '../components/ImageWithFallback';
+import { RootStackParamList } from '../../types/navigation';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Push'>;
 

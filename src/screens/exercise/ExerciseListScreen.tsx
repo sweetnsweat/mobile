@@ -7,8 +7,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Search, Heart } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
-import { ScreenBackground } from '../components/ScreenBackground';
+import { RootStackParamList } from '../../types/navigation';
+import { ScreenBackground } from '../../components/ScreenBackground';
 import {
   getExerciseCategories,
   getExercises,
@@ -16,7 +16,7 @@ import {
   ExerciseListItem,
   ExerciseCategoryGroup,
   ExerciseCategory,
-} from '../services/ExerciseService';
+} from '../../services/ExerciseService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Exercise'>;
 
