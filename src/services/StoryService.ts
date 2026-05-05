@@ -49,6 +49,7 @@ export async function playStory(req: StoryPlayRequest): Promise<StoryPlayRespons
     req,
     { headers: { 'Content-Type': 'application/json', ...authHeader() } },
   );
+  console.log('[StoryAPI] /play response data:', response.data.data);
   return response.data.data;
 }
 

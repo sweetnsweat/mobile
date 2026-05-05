@@ -73,6 +73,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
   const [messages,      setMessages]      = useState<ChatMessage[]>([]);
   const [choices,       setChoices]       = useState<StoryChoice[]>([]);
+  const [selectedChoiceKey, setSelectedChoiceKey] = useState<string | null>(null);
   const [storyData,     setStoryData]     = useState<StoryPlayResponse | null>(null);
   const [characterMeta, setCharacterMeta] = useState<{ name: string; sub: string; img: string }>({ name: '', sub: '', img: '' });
   const [input,         setInput]         = useState('');
@@ -81,6 +82,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const [sending,       setSending]       = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
 
   // ── 초기 로드 ──────────────────────────────────────────────────────────────
 
@@ -133,6 +135,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     }
 
     setChoices(newChoices);
+    setSelectedChoiceKey(null);
 
     if (data.is_chapter_completed && !data.is_story_completed) {
       pushMessage('system', '이 챕터가 완료되었습니다. 다음 챕터로 이동할 수 있습니다.');
@@ -159,6 +162,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
       });
     }
     setChoices(extractChoices(data));
+    setSelectedChoiceKey(null);
   }
 
   // ── 최초 진입: 히스토리 확인 후 복원 or 새 시작 ────────────────────────
@@ -167,6 +171,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     setLoading(true);
     setMessages([]);
     setChoices([]);
+    setSelectedChoiceKey(null);
     setStoryData(null);
     try {
       const history = await fetchStoryHistory(scenario_id);
@@ -193,6 +198,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
         applyResponse(data);
       }
     } catch (e: any) {
+      setSelectedChoiceKey(null);
       console.log('[StoryAPI] initStory error:', e?.response?.data ?? e?.message ?? e);
       pushMessage('system', `연결 오류: ${e?.message ?? 'AI 서버에 접속할 수 없습니다.'}`);
     } finally {
@@ -208,6 +214,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     if (restart) {
       setMessages([]);
       setChoices([]);
+      setSelectedChoiceKey(null);
       setStoryData(null);
     }
     try {
@@ -242,9 +249,9 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
   // ── 선택지 선택 ──────────────────────────────────────────────────────────
 
-  async function handleChoice(choice: StoryChoice) {
+  async function handleChoice(choice: StoryChoice, choiceKey: string) {
     pushMessage('user', choice.text);
-    setChoices([]);
+    setSelectedChoiceKey(choiceKey);
     setSending(true);
     try {
       const data = await playStory({ scenario_id, choice_id: choice.id, restart: false });
@@ -252,6 +259,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     } catch (e: any) {
       pushMessage('system', `오류: ${e?.message ?? '선택을 처리할 수 없습니다.'}`);
     } finally {
+      setSelectedChoiceKey(null);
       setSending(false);
     }
   }
@@ -285,6 +293,11 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const isStoryCompleted   = storyData?.is_story_completed;
   const hasChoices         = choices.length > 0;
   const showTextInput      = !hasChoices && !isChapterCompleted && !isStoryCompleted;
+
+  function focusMessageInput() {
+    if (!showTextInput || sending) return;
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
 
   // ── 렌더 ─────────────────────────────────────────────────────────────────
 
@@ -320,6 +333,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
           style={s.chatScroll}
           contentContainerStyle={s.chatContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onTouchEnd={focusMessageInput}
         >
           {loading ? (
             <View style={s.centerWrap}>
@@ -350,43 +365,25 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
             {hasChoices && (
               <View style={s.choiceArea}>
                 {choices.map((choice, index) => {
-                  if (index === 0) {
-                    return (
-                      <TouchableOpacity
-                        key={`${choice.id}-${index}`}
-                        onPress={() => handleChoice(choice)}
-                        disabled={sending}
-                        activeOpacity={0.85}
-                        style={s.choicePrimaryWrap}
-                      >
-                        <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.choicePrimary}>
-                          <Text style={s.choicePrimaryTxt}>{choice.text}</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    );
-                  }
-                  if (index === 1) {
-                    return (
-                      <TouchableOpacity
-                        key={`${choice.id}-${index}`}
-                        onPress={() => handleChoice(choice)}
-                        disabled={sending}
-                        activeOpacity={0.85}
-                        style={s.choiceSecondary}
-                      >
-                        <Text style={s.choiceSecondaryTxt}>{choice.text}</Text>
-                      </TouchableOpacity>
-                    );
-                  }
+                  const choiceKey = `${choice.id}-${index}`;
+                  const selected = selectedChoiceKey === choiceKey;
                   return (
                     <TouchableOpacity
-                      key={`${choice.id}-${index}`}
-                      onPress={() => handleChoice(choice)}
+                      key={choiceKey}
+                      onPress={() => handleChoice(choice, choiceKey)}
                       disabled={sending}
                       activeOpacity={0.85}
-                      style={s.choiceTertiary}
+                      style={s.choiceWrap}
                     >
-                      <Text style={s.choiceTertiaryTxt}>{choice.text}</Text>
+                      {selected ? (
+                        <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.choiceSelected}>
+                          <Text style={s.choiceSelectedTxt}>{choice.text}</Text>
+                        </LinearGradient>
+                      ) : (
+                        <View style={s.choiceDefault}>
+                          <Text style={s.choiceDefaultTxt}>{choice.text}</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -406,6 +403,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
             {showTextInput && (
               <View style={s.inputArea}>
                 <TextInput
+                  ref={inputRef}
                   value={input}
                   onChangeText={setInput}
                   placeholder="메시지를 입력하세요..."
@@ -574,13 +572,11 @@ chatScroll: { flex: 1 },
 
   // 선택지 (Screen2 primary / secondary / tertiary 계층)
   choiceArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#e5e7eb', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 8 },
-  choicePrimaryWrap: { borderRadius: 12, overflow: 'hidden' },
-  choicePrimary: { paddingVertical: 16, paddingHorizontal: 16, alignItems: 'center', borderRadius: 12 },
-  choicePrimaryTxt: { color: '#fff', fontWeight: '700', fontSize: 15, textAlign: 'center' },
-  choiceSecondary: { paddingVertical: 13, backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'center', paddingHorizontal: 16 },
-  choiceSecondaryTxt: { fontSize: 14, fontWeight: '500', color: '#1f2937', textAlign: 'center' },
-  choiceTertiary: { paddingVertical: 13, backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#d1d5db', alignItems: 'center', paddingHorizontal: 16 },
-  choiceTertiaryTxt: { fontSize: 14, fontWeight: '500', color: '#4b5563', textAlign: 'center' },
+  choiceWrap: { borderRadius: 12, overflow: 'hidden' },
+  choiceDefault: { paddingVertical: 13, backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'center', paddingHorizontal: 16 },
+  choiceDefaultTxt: { fontSize: 14, fontWeight: '600', color: '#1f2937', textAlign: 'center' },
+  choiceSelected: { paddingVertical: 16, paddingHorizontal: 16, alignItems: 'center', borderRadius: 12 },
+  choiceSelectedTxt: { color: '#fff', fontWeight: '800', fontSize: 15, textAlign: 'center' },
 
   // 다음 챕터
   nextChapterArea: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14, alignItems: 'center', gap: 8 },
