@@ -14,6 +14,7 @@ export interface SignupRequest {
   loginId: string;
   password: string;
   nickname: string;
+  email: string;
 }
 
 export interface LoginRequest {
@@ -23,6 +24,7 @@ export interface LoginRequest {
 
 export interface UserProfile {
   id: number;
+  email: string | null;
   loginId: string;
   nickname: string;
   status: string;
@@ -64,9 +66,9 @@ export const clearStoredAuth = (): void => {
 };
 
 // Signup API
-export const signup = async (loginId: string, password: string, nickname: string): Promise<AuthResponse> => {
+export const signup = async (loginId: string, password: string, nickname: string, email: string): Promise<AuthResponse> => {
   try {
-    const request: SignupRequest = { loginId, password, nickname };
+    const request: SignupRequest = { loginId, password, nickname, email };
     const response = await api.post<{ data: AuthResponse }>('/signup', request);
     return response.data.data;
   } catch (error: any) {

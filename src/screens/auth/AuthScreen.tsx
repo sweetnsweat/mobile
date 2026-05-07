@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Lock, User, ArrowRight, Dumbbell, Heart, Zap } from 'lucide-react-native';
+import { Lock, User, Mail, ArrowRight, Dumbbell, Heart, Zap } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { GradientText } from '../../components/GradientText';
@@ -24,6 +24,7 @@ export function AuthScreen({ navigation }: Props) {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,9 +43,11 @@ export function AuthScreen({ navigation }: Props) {
         Animated.timing(titlePulse, { toValue: 1, duration: 1000, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [fadeAnim, titlePulse]);
 
   const handleSubmit = async () => {
+    const trimmedEmail = email.trim();
+
     // Validation
     if (!loginId.trim()) {
       setError('아이디를 입력해주세요');
@@ -52,6 +55,14 @@ export function AuthScreen({ navigation }: Props) {
     }
     if (!isLogin && !nickname.trim()) {
       setError('이름을 입력해주세요');
+      return;
+    }
+    if (!isLogin && !trimmedEmail) {
+      setError('이메일을 입력해주세요');
+      return;
+    }
+    if (!isLogin && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedEmail)) {
+      setError('이메일 형식이 올바르지 않습니다');
       return;
     }
     if (!password.trim()) {
@@ -73,12 +84,13 @@ export function AuthScreen({ navigation }: Props) {
         else navigation.navigate('Home');
       } else {
         // Signup API call
-        const response = await signup(loginId, password, nickname);
+        const response = await signup(loginId, password, nickname, trimmedEmail);
         console.log('Signup success:', response.user);
         setIsLogin(true);
         setLoginId('');
         setPassword('');
         setNickname('');
+        setEmail('');
       }
     } catch (err: any) {
       setError(err.message || '요청 중 오류가 발생했습니다');
@@ -145,16 +157,32 @@ export function AuthScreen({ navigation }: Props) {
                   />
                 </View>
                 {!isLogin && (
-                  <View style={s.inputRow}>
-                    {!isAndroid && <User size={20} color="#f472b6" strokeWidth={2} />}
-                    <TextInput
-                      placeholder="이름"
-                      placeholderTextColor="#9ca3af"
-                      value={nickname}
-                      onChangeText={setNickname}
-                      style={s.input}
-                    />
-                  </View>
+                  <>
+                    <View style={s.inputRow}>
+                      {!isAndroid && <User size={20} color="#f472b6" strokeWidth={2} />}
+                      <TextInput
+                        placeholder="이름"
+                        placeholderTextColor="#9ca3af"
+                        value={nickname}
+                        onChangeText={setNickname}
+                        style={s.input}
+                      />
+                    </View>
+                    <View style={s.inputRow}>
+                      {!isAndroid && <Mail size={20} color="#f472b6" strokeWidth={2} />}
+                      <TextInput
+                        placeholder="Email"
+                        placeholderTextColor="#9ca3af"
+                        value={email}
+                        onChangeText={setEmail}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="email-address"
+                        textContentType="emailAddress"
+                        style={s.input}
+                      />
+                    </View>
+                  </>
                 )}
                 <View style={s.inputRow}>
                   {!isAndroid && <Lock size={20} color="#f472b6" strokeWidth={2} />}
