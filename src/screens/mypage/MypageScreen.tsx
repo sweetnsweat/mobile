@@ -8,7 +8,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronRight, Flame, Bell, Moon, Shield, LogOut,
-  Edit3, Camera, Star, TrendingUp, Activity, Calendar,
+  Camera, Star, TrendingUp, Activity, Calendar,
   Heart, Settings,
 } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -46,7 +46,7 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
   { Icon: Bell,    label: '알림 설정',   sub: '퀘스트·랭킹 알림', toggle: true, toggleKey: 'bell' },
   { Icon: Moon,    label: '다크 모드',   sub: '앱 테마 변경',      toggle: true, toggleKey: 'dark' },
   { Icon: Shield,  label: '개인정보 보호', sub: '계정 공개 범위' },
-  { Icon: Settings,label: '계정 설정',   sub: '이메일·비밀번호' },
+  { Icon: Settings,label: '회원정보 수정',   sub: '' },
   { Icon: LogOut,  label: '로그아웃',    sub: '', danger: true },
 ];
 
@@ -84,9 +84,6 @@ export function MypageScreen({ navigation }: Props) {
             <Text style={s.headerSub}>My Profile</Text>
             <Text style={s.headerTitle}>마이페이지 ✨</Text>
           </View>
-          <TouchableOpacity style={s.editBtn}>
-            <Edit3 size={16} color="#4b5563" strokeWidth={2.5} />
-          </TouchableOpacity>
         </View>
 
         {/* Scroll body */}
