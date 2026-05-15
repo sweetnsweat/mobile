@@ -515,7 +515,7 @@ export function HomeScreen({ navigation }: Props) {
           const scenarioId = previewScenarioId;
           setPreviewScenarioId(null);
           if (scenarioId != null) {
-            navigation.navigate('CharacterQuest', { scenario_id: scenarioId });
+            navigation.navigate('WorldIntro', { scenario_id: scenarioId });
           }
         }}
       />

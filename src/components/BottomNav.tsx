@@ -32,7 +32,7 @@ export function BottomNav({ active, navigation }: Props) {
         opponentImage: 'https://i.imgur.com/ub32dOr.png',
       });
     } else if (key === 'chat') {
-      navigation.navigate('CharacterQuest', {});
+      navigation.navigate('StoryChatList');
     } else if (key === 'home') {
       navigation.navigate('Home');
     } else if (key === 'record') {

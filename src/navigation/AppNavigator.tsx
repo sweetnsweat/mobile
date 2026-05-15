@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -22,13 +23,17 @@ import { BattleScreen } from '../screens/battle/BattleScreen';
 import { MypageScreen } from '../screens/mypage/MypageScreen';
 import { CharacterShopScreen } from '../screens/mypage/CharacterShopScreen';
 import { WorldRankingScreen } from '../screens/world/WorldRankingScreen';
+import { WorldIntroScreen } from '../screens/world/WorldIntroScreen';
 import { ActivityRankingDetailScreen } from '../screens/ActivityRankingDetailScreen';
+import { StoryChatListScreen } from '../screens/story/StoryChatListScreen';
+import { AccountRecoveryScreen } from '../screens/auth/AccountRecoveryScreen';
+import { EditProfileScreen } from '../screens/mypage/EditProfileScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={s.root}>
       <NavigationContainer>
         <Stack.Navigator
           initialRouteName="EmojiMapHero"
@@ -44,6 +49,7 @@ export function AppNavigator() {
           <Stack.Screen name="Statistics" component={StatisticsScreen} />
           <Stack.Screen name="Push" component={PushNotificationScreen} />
           <Stack.Screen name="CharacterQuest" component={CharacterQuestScreen} />
+          <Stack.Screen name="WorldIntro" component={WorldIntroScreen} />
           <Stack.Screen name="CharacterQuest2" component={CharacterQuestScreen2} />
           <Stack.Screen name="Exercise" component={ExerciseListScreen} />
           <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
@@ -53,8 +59,15 @@ export function AppNavigator() {
           <Stack.Screen name="CharacterShop" component={CharacterShopScreen} />
           <Stack.Screen name="WorldRanking" component={WorldRankingScreen} />
           <Stack.Screen name="ActivityRankingDetail" component={ActivityRankingDetailScreen} />
+          <Stack.Screen name="StoryChatList" component={StoryChatListScreen} />
+          <Stack.Screen name="AccountRecovery" component={AccountRecoveryScreen} />
+          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
   );
 }
+
+const s = StyleSheet.create({
+  root: { flex: 1 },
+});
