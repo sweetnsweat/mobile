@@ -1,9 +1,8 @@
 import axios from 'axios';
-
-const API_BASE_URL = 'http://100.89.171.113:8080/api/auth';
+import { AUTH_API_BASE_URL } from '../config/api';
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: AUTH_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -102,6 +101,46 @@ export const login = async (loginId: string, password: string): Promise<AuthResp
       throw new Error(data.message || 'Login failed');
     }
     throw new Error('Network error. Please check your connection.');
+  }
+};
+
+// 닉네임 중복 확인
+export const checkNickname = async (nickname: string): Promise<{ available: boolean; duplicated: boolean }> => {
+  try {
+    const response = await api.get<{ data: { nickname: string; available: boolean; duplicated: boolean } }>(
+      '/nickname/check',
+      { params: { nickname } },
+    );
+    return response.data.data;
+  } catch (error: any) {
+    if (error.response) {
+      throw new Error(error.response.data?.message || '닉네임 확인에 실패했습니다.');
+    }
+    throw new Error('네트워크 오류가 발생했습니다.');
+  }
+};
+
+// 아이디 찾기 — 이메일로 로그인 아이디 발송
+export const findLoginId = async (email: string): Promise<void> => {
+  try {
+    await api.post('/find-login-id', { email });
+  } catch (error: any) {
+    if (error.response) {
+      throw new Error(error.response.data?.message || '아이디 찾기 요청에 실패했습니다.');
+    }
+    throw new Error('네트워크 오류가 발생했습니다.');
+  }
+};
+
+// 임시 비밀번호 발급 — 이메일로 임시 비밀번호 발송
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  try {
+    await api.post('/password-reset/request', { email });
+  } catch (error: any) {
+    if (error.response) {
+      throw new Error(error.response.data?.message || '비밀번호 재설정 요청에 실패했습니다.');
+    }
+    throw new Error('네트워크 오류가 발생했습니다.');
   }
 };
 

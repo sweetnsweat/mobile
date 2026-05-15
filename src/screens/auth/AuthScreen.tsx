@@ -12,7 +12,7 @@ import { RootStackParamList } from '../../types/navigation';
 import { GradientText } from '../../components/GradientText';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { useBounceAnimation } from '../../hooks/useBounceAnimation';
-import { login, signup } from '../../services/AuthService';
+import { login, signup, checkNickname } from '../../services/AuthService';
 import { getMyProfile } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
@@ -27,6 +27,8 @@ export function AuthScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [nicknameChecking, setNicknameChecking] = useState(false);
+  const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'ok' | 'taken'>('idle');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const b1 = useBounceAnimation(3000);
@@ -45,6 +47,21 @@ export function AuthScreen({ navigation }: Props) {
     ).start();
   }, [fadeAnim, titlePulse]);
 
+  const handleCheckNickname = async () => {
+    const trimmed = nickname.trim();
+    if (!trimmed) { setError('이름을 입력해주세요'); return; }
+    setError('');
+    setNicknameChecking(true);
+    try {
+      const result = await checkNickname(trimmed);
+      setNicknameStatus(result.available ? 'ok' : 'taken');
+    } catch (e: any) {
+      setError(e?.message ?? '닉네임 확인 중 오류가 발생했습니다.');
+    } finally {
+      setNicknameChecking(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const trimmedEmail = email.trim();
 
@@ -55,6 +72,14 @@ export function AuthScreen({ navigation }: Props) {
     }
     if (!isLogin && !nickname.trim()) {
       setError('이름을 입력해주세요');
+      return;
+    }
+    if (!isLogin && nicknameStatus === 'idle') {
+      setError('닉네임 중복 확인을 해주세요');
+      return;
+    }
+    if (!isLogin && nicknameStatus === 'taken') {
+      setError('이미 사용 중인 닉네임입니다');
       return;
     }
     if (!isLogin && !trimmedEmail) {
@@ -158,16 +183,37 @@ export function AuthScreen({ navigation }: Props) {
                 </View>
                 {!isLogin && (
                   <>
-                    <View style={s.inputRow}>
-                      {!isAndroid && <User size={20} color="#f472b6" strokeWidth={2} />}
-                      <TextInput
-                        placeholder="이름"
-                        placeholderTextColor="#9ca3af"
-                        value={nickname}
-                        onChangeText={setNickname}
-                        style={s.input}
-                      />
+                    <View style={s.nicknameGroup}>
+                      <View style={[s.inputRow, s.nicknameInput, nicknameStatus === 'ok' && s.inputOk, nicknameStatus === 'taken' && s.inputTaken]}>
+                        {!isAndroid && <User size={20} color="#f472b6" strokeWidth={2} />}
+                        <TextInput
+                          placeholder="이름 (닉네임)"
+                          placeholderTextColor="#9ca3af"
+                          value={nickname}
+                          onChangeText={t => { setNickname(t); setNicknameStatus('idle'); setError(''); }}
+                          style={s.input}
+                        />
+                      </View>
+                      <TouchableOpacity
+                        style={[s.checkBtn, nicknameStatus === 'ok' && s.checkBtnOk]}
+                        activeOpacity={0.8}
+                        onPress={handleCheckNickname}
+                        disabled={nicknameChecking}
+                      >
+                        {nicknameChecking
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={s.checkBtnTxt}>
+                              {nicknameStatus === 'ok' ? '확인됨' : '중복 확인'}
+                            </Text>
+                        }
+                      </TouchableOpacity>
                     </View>
+                    {nicknameStatus === 'ok' && (
+                      <Text style={s.nickOkTxt}>사용 가능한 닉네임입니다 ✓</Text>
+                    )}
+                    {nicknameStatus === 'taken' && (
+                      <Text style={s.nickTakenTxt}>이미 사용 중인 닉네임입니다</Text>
+                    )}
                     <View style={s.inputRow}>
                       {!isAndroid && <Mail size={20} color="#f472b6" strokeWidth={2} />}
                       <TextInput
@@ -238,10 +284,21 @@ export function AuthScreen({ navigation }: Props) {
                 <Text style={s.toggleLabel}>
                   {isLogin ? '아직 계정이 없으신가요?' : '이미 계정이 있으신가요?'}
                 </Text>
-                <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setError(''); }}>
+                <TouchableOpacity onPress={() => { setIsLogin(!isLogin); setError(''); setNicknameStatus('idle'); }}>
                   <Text style={s.toggleBtn}>{isLogin ? '회원가입' : '로그인'}</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Account recovery link — 로그인 탭에서만 표시 */}
+              {isLogin && (
+                <TouchableOpacity
+                  style={s.recoveryRow}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('AccountRecovery')}
+                >
+                  <Text style={s.recoveryTxt}>아이디 · 비밀번호 찾기</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Bottom tagline */}
               <Text style={s.tagline}>운동을 습관이 아닌 게임처럼 🎮</Text>
@@ -303,4 +360,18 @@ const s = StyleSheet.create({
 
   tagline: { fontSize: 11, color: '#6b7280', fontWeight: '600', letterSpacing: 0.5, textAlign: 'center' },
   errorText: { fontSize: 12, color: '#ef4444', textAlign: 'center', marginTop: -8 },
+
+  recoveryRow: { alignItems: 'center' },
+  recoveryTxt: { fontSize: 12, color: '#9ca3af', fontWeight: '600', textDecorationLine: 'underline' },
+
+  /* Nickname duplicate check */
+  nicknameGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nicknameInput: { flex: 1 },
+  inputOk: { borderColor: '#10b981' },
+  inputTaken: { borderColor: '#ef4444' },
+  checkBtn: { backgroundColor: '#ec4899', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center', minWidth: 76 },
+  checkBtnOk: { backgroundColor: '#10b981' },
+  checkBtnTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  nickOkTxt: { fontSize: 11, fontWeight: '600', color: '#10b981', marginTop: -8 },
+  nickTakenTxt: { fontSize: 11, fontWeight: '600', color: '#ef4444', marginTop: -8 },
 });
