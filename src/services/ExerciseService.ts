@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 import { getStoredAuth } from './AuthService';
 
-const BASE_URL   = 'http://100.89.171.113:8080/api/exercises';
-const USERS_URL  = 'http://100.89.171.113:8080/api/users';
+const BASE_URL   = `${API_BASE_URL}/exercises`;
+const USERS_URL  = `${API_BASE_URL}/users`;
 
 export interface ExerciseCategory {
   category: string;

@@ -218,6 +218,7 @@ export function MypageScreen({ navigation }: Props) {
                     key={label}
                     onPress={() => {
                       if (danger) { handleLogout(); }
+                      else if (label === '회원정보 수정') { navigation.navigate('EditProfile'); }
                       else if (toggleKey) { setToggles(p => ({ ...p, [toggleKey]: !p[toggleKey] })); }
                     }}
                     style={[s.settingRow, i < SETTINGS.length - 1 && s.settingBorder]}

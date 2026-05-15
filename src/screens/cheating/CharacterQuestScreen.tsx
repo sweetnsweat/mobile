@@ -21,17 +21,16 @@ import {
   StoryChoice,
 } from '../../services/StoryService';
 import { completeQuest } from '../../services/QuestService';
+import { AI_MEDIA_ORIGIN } from '../../config/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CharacterQuest'>;
 
 const DEFAULT_SCENARIO_ID = 7;
 
-const AI_MEDIA_BASE = 'http://100.89.171.113:8000';
-
 function resolveCharacterImage(url?: string): string {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  return `${AI_MEDIA_BASE}${url}`;
+  return `${AI_MEDIA_ORIGIN}${url}`;
 }
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
@@ -74,6 +73,7 @@ function phaseLabel(phase?: string): string {
 
 export function CharacterQuestScreen({ navigation, route }: Props) {
   const scenario_id = route.params?.scenario_id ?? DEFAULT_SCENARIO_ID;
+  const introStarted = route.params?.introStarted ?? false;
 
   const [messages,      setMessages]      = useState<ChatMessage[]>([]);
   const [choices,       setChoices]       = useState<StoryChoice[]>([]);
@@ -218,8 +218,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
         applyStateOnly(data);
       } else {
         // 히스토리 없음 → 새 스토리 시작
-        setIsRestarting(true);
-        const data = await playStory({ scenario_id, restart: true });
+        setIsRestarting(!introStarted);
+        const data = await playStory({ scenario_id, restart: !introStarted });
         applyResponse(data);
       }
     } catch (e: any) {

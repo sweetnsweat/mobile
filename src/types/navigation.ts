@@ -23,7 +23,8 @@ export type RootStackParamList = {
   Condition: undefined;
   Statistics: undefined;
   Push: undefined;
-  CharacterQuest: { scenario_id?: number };
+  CharacterQuest: { scenario_id?: number; introStarted?: boolean };
+  WorldIntro: { scenario_id: number };
   CharacterQuest2: { scenario_id?: number; choices?: { id: number; text: string }[] };
   Exercise: undefined;
   ExerciseDetail: { exercise: ExerciseDetailParams };
@@ -33,4 +34,7 @@ export type RootStackParamList = {
   CharacterShop: undefined;
   WorldRanking: undefined;
   ActivityRankingDetail: undefined;
+  StoryChatList: undefined;
+  AccountRecovery: { initialTab?: 'id' | 'password' };
+  EditProfile: undefined;
 };
