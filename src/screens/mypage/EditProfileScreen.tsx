@@ -14,6 +14,68 @@ import { checkNickname } from '../../services/AuthService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
+const ITEM_H = 44;
+const VISIBLE = 5;
+const PAD = ITEM_H * Math.floor(VISIBLE / 2);
+
+interface WheelPickerProps {
+  items: string[];
+  initialIndex: number;
+  onChange: (index: number) => void;
+}
+
+function WheelPicker({ items, initialIndex, onChange }: WheelPickerProps) {
+  const scrollRef = useRef<ScrollView>(null);
+  const [activeIdx, setActiveIdx] = useState(initialIndex);
+
+  useEffect(() => {
+    setActiveIdx(initialIndex);
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: initialIndex * ITEM_H, animated: false });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [initialIndex]);
+
+  const onScrollEnd = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const idx = Math.max(0, Math.min(Math.round(y / ITEM_H), items.length - 1));
+    setActiveIdx(idx);
+    onChange(idx);
+  };
+
+  return (
+    <View style={wp.wrap}>
+      <View style={wp.highlight} />
+      <ScrollView
+        ref={scrollRef}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_H}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: PAD }}
+        onMomentumScrollEnd={onScrollEnd}
+        onScrollEndDrag={onScrollEnd}
+      >
+        {items.map((item, i) => (
+          <View key={item} style={wp.item}>
+            <Text style={[wp.txt, activeIdx === i && wp.txtActive]}>{item}</Text>
+          </View>
+        ))}
+      </ScrollView>
+      <View pointerEvents="none" style={wp.fadeTop} />
+      <View pointerEvents="none" style={wp.fadeBottom} />
+    </View>
+  );
+}
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => String(1940 + i));
+const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+const DEFAULT_YEAR_IDX = Math.max(0, YEARS.indexOf('1990'));
+const DEFAULT_MONTH_IDX = 0;
+const DEFAULT_DAY_IDX = 0;
+
 const GENDER_OPTIONS: { value: UserGender; label: string }[] = [
   { value: 'male', label: '남성' },
   { value: 'female', label: '여성' },
@@ -65,6 +127,24 @@ function isValidPastBirthDate(value: string): boolean {
   return date.getTime() < today.getTime();
 }
 
+function getBirthDateIndices(value?: string | null): { year: number; month: number; day: number; hasValue: boolean } {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return {
+      year: DEFAULT_YEAR_IDX,
+      month: DEFAULT_MONTH_IDX,
+      day: DEFAULT_DAY_IDX,
+      hasValue: false,
+    };
+  }
+  const [year, month, day] = value.split('-');
+  return {
+    year: Math.max(0, YEARS.indexOf(year)),
+    month: Math.max(0, MONTHS.indexOf(month)),
+    day: Math.max(0, DAYS.indexOf(day)),
+    hasValue: true,
+  };
+}
+
 export function EditProfileScreen({ navigation }: Props) {
   const isAndroid = Platform.OS === 'android';
 
@@ -74,7 +154,10 @@ export function EditProfileScreen({ navigation }: Props) {
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<UserGender | ''>('');
-  const [birthDate, setBirthDate] = useState('');
+  const [birthYearIdx, setBirthYearIdx] = useState(DEFAULT_YEAR_IDX);
+  const [birthMonthIdx, setBirthMonthIdx] = useState(DEFAULT_MONTH_IDX);
+  const [birthDayIdx, setBirthDayIdx] = useState(DEFAULT_DAY_IDX);
+  const [birthDateEnabled, setBirthDateEnabled] = useState(false);
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [nicknameChecking, setNicknameChecking] = useState(false);
@@ -93,7 +176,11 @@ export function EditProfileScreen({ navigation }: Props) {
         setNickname(p.nickname);
         setEmail(p.email ?? '');
         setGender(readGender(p.gender));
-        setBirthDate(p.birthDate ?? '');
+        const birth = getBirthDateIndices(p.birthDate);
+        setBirthYearIdx(birth.year);
+        setBirthMonthIdx(birth.month);
+        setBirthDayIdx(birth.day);
+        setBirthDateEnabled(birth.hasValue);
         setHeightCm(p.heightCm != null ? String(p.heightCm) : '');
         setWeightKg(p.weightKg != null ? String(p.weightKg) : '');
         originalNickname.current = p.nickname;
@@ -126,7 +213,9 @@ export function EditProfileScreen({ navigation }: Props) {
   async function handleSave() {
     const trimmedNick = nickname.trim();
     const trimmedEmail = email.trim();
-    const trimmedBirthDate = birthDate.trim();
+    const selectedBirthDate = birthDateEnabled
+      ? `${YEARS[birthYearIdx]}-${MONTHS[birthMonthIdx]}-${DAYS[birthDayIdx]}`
+      : '';
     const trimmedHeight = heightCm.trim();
     const trimmedWeight = weightKg.trim();
 
@@ -137,7 +226,7 @@ export function EditProfileScreen({ navigation }: Props) {
       setError('이메일 형식이 올바르지 않습니다.');
       return;
     }
-    if (trimmedBirthDate && !isValidPastBirthDate(trimmedBirthDate)) {
+    if (selectedBirthDate && !isValidPastBirthDate(selectedBirthDate)) {
       setError('생년월일은 YYYY-MM-DD 형식의 과거 날짜로 입력해주세요.');
       return;
     }
@@ -159,14 +248,13 @@ export function EditProfileScreen({ navigation }: Props) {
         nickname: trimmedNick,
         email: trimmedEmail || undefined,
         gender: gender || undefined,
-        birthDate: trimmedBirthDate || undefined,
+        birthDate: selectedBirthDate || undefined,
         heightCm: parsedHeight,
         weightKg: parsedWeight,
       });
       setProfile(updated);
       originalNickname.current = trimmedNick;
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      navigation.goBack();
     } catch (e: any) {
       setError(e?.message ?? '저장 중 오류가 발생했습니다.');
     } finally {
@@ -297,19 +385,41 @@ export function EditProfileScreen({ navigation }: Props) {
                 {/* 생년월일 */}
                 <View style={s.fieldGroup}>
                   <Text style={s.fieldLabel}>생년월일</Text>
-                  <View style={s.inputRow}>
-                    <TextInput
-                      value={birthDate}
-                      onChangeText={t => { setBirthDate(t); setError(''); }}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9ca3af"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardType="numbers-and-punctuation"
-                      style={s.input}
+                  <View style={s.birthPickerRow}>
+                    <WheelPicker
+                      items={YEARS}
+                      initialIndex={birthYearIdx}
+                      onChange={idx => {
+                        setBirthDateEnabled(true);
+                        setBirthYearIdx(idx);
+                        setError('');
+                      }}
                     />
+                    <Text style={s.pickerUnit}>년</Text>
+                    <WheelPicker
+                      items={MONTHS}
+                      initialIndex={birthMonthIdx}
+                      onChange={idx => {
+                        setBirthDateEnabled(true);
+                        setBirthMonthIdx(idx);
+                        setError('');
+                      }}
+                    />
+                    <Text style={s.pickerUnit}>월</Text>
+                    <WheelPicker
+                      items={DAYS}
+                      initialIndex={birthDayIdx}
+                      onChange={idx => {
+                        setBirthDateEnabled(true);
+                        setBirthDayIdx(idx);
+                        setError('');
+                      }}
+                    />
+                    <Text style={s.pickerUnit}>일</Text>
                   </View>
-                  <Text style={s.fieldHint}>예: 2002-05-20</Text>
+                  <Text style={s.fieldHint}>
+                    선택값: {birthDateEnabled ? `${YEARS[birthYearIdx]}-${MONTHS[birthMonthIdx]}-${DAYS[birthDayIdx]}` : '미설정'}
+                  </Text>
                 </View>
 
                 {/* 키 / 몸무게 */}
@@ -513,6 +623,9 @@ const s = StyleSheet.create({
   segmentTxt: { fontSize: 12, fontWeight: '800', color: '#9ca3af' },
   segmentTxtActive: { color: '#ec4899' },
 
+  birthPickerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pickerUnit: { fontSize: 13, color: '#6b7280', fontWeight: '600' },
+
   measureRow: { flexDirection: 'row', gap: 10 },
   measureField: { flex: 1 },
 
@@ -542,4 +655,38 @@ const s = StyleSheet.create({
   saveTxt: { fontSize: 16, fontWeight: '700', color: '#fff' },
 
   errorText: { fontSize: 12, color: '#ef4444', textAlign: 'center', fontWeight: '600' },
+});
+
+const wp = StyleSheet.create({
+  wrap: { height: ITEM_H * VISIBLE, flex: 1, overflow: 'hidden' },
+  highlight: {
+    position: 'absolute',
+    top: PAD,
+    left: 4,
+    right: 4,
+    height: ITEM_H,
+    backgroundColor: '#fdf2f8',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#fbcfe8',
+  },
+  item: { height: ITEM_H, alignItems: 'center', justifyContent: 'center' },
+  txt: { fontSize: 15, color: '#9ca3af', fontWeight: '400' },
+  txtActive: { fontSize: 17, color: '#ec4899', fontWeight: '700' },
+  fadeTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: PAD,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+  },
+  fadeBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: PAD,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+  },
 });
