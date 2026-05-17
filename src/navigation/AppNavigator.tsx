@@ -19,7 +19,10 @@ import { CharacterQuestScreen2 } from '../screens/cheating/CharacterQuestScreen2
 import { ExerciseListScreen } from '../screens/exercise/ExerciseListScreen';
 import { ExerciseDetailScreen } from '../screens/exercise/ExerciseDetailScreen';
 import { CharacterSelectScreen } from '../screens/cheating/CharacterSelectScreen';
+import { BattleLobbyScreen } from '../screens/battle/BattleLobbyScreen';
+import { BattleMatchingScreen } from '../screens/battle/BattleMatchingScreen';
 import { BattleScreen } from '../screens/battle/BattleScreen';
+import { BattleResultScreen } from '../screens/battle/BattleResultScreen';
 import { MypageScreen } from '../screens/mypage/MypageScreen';
 import { CharacterShopScreen } from '../screens/mypage/CharacterShopScreen';
 import { WorldRankingScreen } from '../screens/world/WorldRankingScreen';
@@ -54,7 +57,10 @@ export function AppNavigator() {
           <Stack.Screen name="Exercise" component={ExerciseListScreen} />
           <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
           <Stack.Screen name="CharacterSelect" component={CharacterSelectScreen} />
+          <Stack.Screen name="BattleLobby" component={BattleLobbyScreen} />
+          <Stack.Screen name="BattleMatching" component={BattleMatchingScreen} />
           <Stack.Screen name="Battle" component={BattleScreen} />
+          <Stack.Screen name="BattleResult" component={BattleResultScreen} />
           <Stack.Screen name="Mypage" component={MypageScreen} />
           <Stack.Screen name="CharacterShop" component={CharacterShopScreen} />
           <Stack.Screen name="WorldRanking" component={WorldRankingScreen} />

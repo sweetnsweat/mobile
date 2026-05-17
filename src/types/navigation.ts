@@ -29,12 +29,15 @@ export type RootStackParamList = {
   Exercise: undefined;
   ExerciseDetail: { exercise: ExerciseDetailParams };
   CharacterSelect: undefined;
-  Battle: { myName: string; myImage: string; opponentName: string; opponentImage: string };
+  BattleLobby: undefined;
+  BattleMatching: { duration: '1d' | '7d' };
+  Battle: { myName: string; myImage: string; opponentName: string; opponentImage: string; duration: '1d' | '7d' };
+  BattleResult: { myName: string; myImage: string; opponentName: string; opponentImage: string; won: boolean; duration: '1d' | '7d' };
   Mypage: undefined;
   CharacterShop: undefined;
   WorldRanking: undefined;
   ActivityRankingDetail: undefined;
   StoryChatList: undefined;
-  AccountRecovery: { initialTab?: 'id' | 'password' };
+  AccountRecovery: { initialTab?: 'id' | 'password' } | undefined;
   EditProfile: undefined;
 };

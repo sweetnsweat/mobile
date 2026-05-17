@@ -25,12 +25,7 @@ export function BottomNav({ active, navigation }: Props) {
   function handlePress(key: NavTab) {
     if (!navigation) return;
     if (key === 'battle') {
-      navigation.navigate('Battle', {
-        myName: '이수연',
-        myImage: 'https://i.imgur.com/v0njcuh.png',
-        opponentName: '민수 선배',
-        opponentImage: 'https://i.imgur.com/ub32dOr.png',
-      });
+      navigation.navigate('BattleLobby');
     } else if (key === 'chat') {
       navigation.navigate('StoryChatList');
     } else if (key === 'home') {
