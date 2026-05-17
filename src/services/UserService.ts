@@ -22,6 +22,7 @@ export interface UserProfileResponse {
   id: number;
   loginId: string;
   nickname: string;
+  email?: string | null;
   gender?: string;
   birthDate?: string;
   heightCm?: number;
@@ -34,6 +35,17 @@ export interface UserProfileResponse {
   activeRoutineId: number | null;
   routineSetupRequired: boolean;
   profileImageUrl?: string | null;
+}
+
+export type UserGender = 'male' | 'female' | 'prefer_not_to_say';
+
+export interface UpdateUserInfoRequest {
+  nickname?: string;
+  email?: string;
+  gender?: UserGender;
+  birthDate?: string;
+  heightCm?: number;
+  weightKg?: number;
 }
 
 function authHeader(): Record<string, string> {
@@ -51,7 +63,7 @@ export async function saveOnboardingProfile(req: OnboardingProfileRequest): Prom
   return response.data.data;
 }
 
-export async function updateUserInfo(body: { nickname?: string; email?: string }): Promise<UserProfileResponse> {
+export async function updateUserInfo(body: UpdateUserInfoRequest): Promise<UserProfileResponse> {
   const response = await axios.put<{ data: UserProfileResponse }>(
     `${BASE_URL}/me`,
     body,

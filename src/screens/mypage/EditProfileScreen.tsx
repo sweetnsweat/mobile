@@ -9,13 +9,23 @@ import { ChevronLeft, User, Mail, Lock, Save, CheckCircle } from 'lucide-react-n
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
-import { getMyProfile, updateUserInfo, UserProfileResponse } from '../../services/UserService';
+import { getMyProfile, updateUserInfo, UserGender, UserProfileResponse } from '../../services/UserService';
 import { checkNickname } from '../../services/AuthService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
+const GENDER_OPTIONS: { value: UserGender; label: string }[] = [
+  { value: 'male', label: '남성' },
+  { value: 'female', label: '여성' },
+  { value: 'prefer_not_to_say', label: '선택 안 함' },
+];
 const GENDER_LABEL: Record<string, string> = {
-  MALE: '남성', FEMALE: '여성', OTHER: '기타',
+  male: '남성',
+  female: '여성',
+  prefer_not_to_say: '선택 안 함',
+  MALE: '남성',
+  FEMALE: '여성',
+  OTHER: '기타',
 };
 const LEVEL_LABEL: Record<string, string> = {
   BEGINNER: '초급', INTERMEDIATE: '중급', ADVANCED: '고급',
@@ -30,6 +40,31 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function readGender(value?: string | null): UserGender | '' {
+  if (!value) return '';
+  const normalized = value.toLowerCase();
+  if (normalized === 'male' || normalized === 'female' || normalized === 'prefer_not_to_say') {
+    return normalized;
+  }
+  return '';
+}
+
+function isValidPastBirthDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date.getTime() < today.getTime();
+}
+
 export function EditProfileScreen({ navigation }: Props) {
   const isAndroid = Platform.OS === 'android';
 
@@ -38,6 +73,10 @@ export function EditProfileScreen({ navigation }: Props) {
 
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
+  const [gender, setGender] = useState<UserGender | ''>('');
+  const [birthDate, setBirthDate] = useState('');
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
   const [nicknameChecking, setNicknameChecking] = useState(false);
   const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'ok' | 'same' | 'taken'>('idle');
   const [saving, setSaving] = useState(false);
@@ -52,7 +91,11 @@ export function EditProfileScreen({ navigation }: Props) {
       .then(p => {
         setProfile(p);
         setNickname(p.nickname);
-        setEmail((p as any).email ?? '');
+        setEmail(p.email ?? '');
+        setGender(readGender(p.gender));
+        setBirthDate(p.birthDate ?? '');
+        setHeightCm(p.heightCm != null ? String(p.heightCm) : '');
+        setWeightKg(p.weightKg != null ? String(p.weightKg) : '');
         originalNickname.current = p.nickname;
         // 기존 닉네임은 확인 불필요
         setNicknameStatus('same');
@@ -83,6 +126,9 @@ export function EditProfileScreen({ navigation }: Props) {
   async function handleSave() {
     const trimmedNick = nickname.trim();
     const trimmedEmail = email.trim();
+    const trimmedBirthDate = birthDate.trim();
+    const trimmedHeight = heightCm.trim();
+    const trimmedWeight = weightKg.trim();
 
     if (!trimmedNick) { setError('닉네임을 입력해주세요.'); return; }
     if (nicknameStatus === 'idle') { setError('닉네임 중복 확인을 해주세요.'); return; }
@@ -91,11 +137,33 @@ export function EditProfileScreen({ navigation }: Props) {
       setError('이메일 형식이 올바르지 않습니다.');
       return;
     }
+    if (trimmedBirthDate && !isValidPastBirthDate(trimmedBirthDate)) {
+      setError('생년월일은 YYYY-MM-DD 형식의 과거 날짜로 입력해주세요.');
+      return;
+    }
+    const parsedHeight = trimmedHeight ? Number(trimmedHeight) : undefined;
+    const parsedWeight = trimmedWeight ? Number(trimmedWeight) : undefined;
+    if (parsedHeight !== undefined && (!Number.isFinite(parsedHeight) || parsedHeight < 50 || parsedHeight > 250)) {
+      setError('키는 50.0~250.0cm 범위로 입력해주세요.');
+      return;
+    }
+    if (parsedWeight !== undefined && (!Number.isFinite(parsedWeight) || parsedWeight < 20 || parsedWeight > 300)) {
+      setError('몸무게는 20.0~300.0kg 범위로 입력해주세요.');
+      return;
+    }
 
     setError('');
     setSaving(true);
     try {
-      await updateUserInfo({ nickname: trimmedNick, email: trimmedEmail || undefined });
+      const updated = await updateUserInfo({
+        nickname: trimmedNick,
+        email: trimmedEmail || undefined,
+        gender: gender || undefined,
+        birthDate: trimmedBirthDate || undefined,
+        heightCm: parsedHeight,
+        weightKg: parsedWeight,
+      });
+      setProfile(updated);
       originalNickname.current = trimmedNick;
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -149,10 +217,6 @@ export function EditProfileScreen({ navigation }: Props) {
                 <Text style={s.cardTitle}>기본 정보</Text>
                 <View style={s.infoList}>
                   <InfoRow label="아이디" value={profile?.loginId ?? '-'} />
-                  <InfoRow label="성별" value={GENDER_LABEL[profile?.gender ?? ''] ?? '-'} />
-                  <InfoRow label="생년월일" value={profile?.birthDate ?? '-'} />
-                  <InfoRow label="키" value={profile?.heightCm ? `${profile.heightCm} cm` : '-'} />
-                  <InfoRow label="몸무게" value={profile?.weightKg ? `${profile.weightKg} kg` : '-'} />
                   <InfoRow label="운동 수준" value={LEVEL_LABEL[profile?.experienceLevel ?? ''] ?? '-'} />
                 </View>
               </View>
@@ -208,6 +272,76 @@ export function EditProfileScreen({ navigation }: Props) {
                   {nicknameStatus === 'taken' && (
                     <Text style={s.fieldHintErr}>이미 사용 중인 닉네임입니다</Text>
                   )}
+                </View>
+
+                {/* 성별 */}
+                <View style={s.fieldGroup}>
+                  <Text style={s.fieldLabel}>성별</Text>
+                  <View style={s.segmentRow}>
+                    {GENDER_OPTIONS.map(option => (
+                      <TouchableOpacity
+                        key={option.value}
+                        style={[s.segmentItem, gender === option.value && s.segmentItemActive]}
+                        activeOpacity={0.8}
+                        onPress={() => { setGender(option.value); setError(''); }}
+                      >
+                        <Text style={[s.segmentTxt, gender === option.value && s.segmentTxtActive]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {gender ? <Text style={s.fieldHint}>현재 선택: {GENDER_LABEL[gender]}</Text> : null}
+                </View>
+
+                {/* 생년월일 */}
+                <View style={s.fieldGroup}>
+                  <Text style={s.fieldLabel}>생년월일</Text>
+                  <View style={s.inputRow}>
+                    <TextInput
+                      value={birthDate}
+                      onChangeText={t => { setBirthDate(t); setError(''); }}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9ca3af"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="numbers-and-punctuation"
+                      style={s.input}
+                    />
+                  </View>
+                  <Text style={s.fieldHint}>예: 2002-05-20</Text>
+                </View>
+
+                {/* 키 / 몸무게 */}
+                <View style={s.measureRow}>
+                  <View style={[s.fieldGroup, s.measureField]}>
+                    <Text style={s.fieldLabel}>키</Text>
+                    <View style={s.inputRow}>
+                      <TextInput
+                        value={heightCm}
+                        onChangeText={t => { setHeightCm(t); setError(''); }}
+                        placeholder="cm"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="decimal-pad"
+                        style={s.input}
+                      />
+                      <Text style={s.unitTxt}>cm</Text>
+                    </View>
+                  </View>
+                  <View style={[s.fieldGroup, s.measureField]}>
+                    <Text style={s.fieldLabel}>몸무게</Text>
+                    <View style={s.inputRow}>
+                      <TextInput
+                        value={weightKg}
+                        onChangeText={t => { setWeightKg(t); setError(''); }}
+                        placeholder="kg"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="decimal-pad"
+                        style={s.input}
+                      />
+                      <Text style={s.unitTxt}>kg</Text>
+                    </View>
+                  </View>
                 </View>
 
                 {/* 이메일 */}
@@ -341,6 +475,7 @@ const s = StyleSheet.create({
   input: { flex: 1, fontSize: 14, color: '#374151' },
   inputOk: { borderColor: '#10b981' },
   inputError: { borderColor: '#ef4444' },
+  unitTxt: { fontSize: 13, fontWeight: '700', color: '#9ca3af' },
 
   /* Nickname row */
   nicknameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -354,6 +489,32 @@ const s = StyleSheet.create({
   checkBtnTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
   fieldHintOk: { fontSize: 11, fontWeight: '600', color: '#10b981' },
   fieldHintErr: { fontSize: 11, fontWeight: '600', color: '#ef4444' },
+  fieldHint: { fontSize: 11, fontWeight: '600', color: '#9ca3af' },
+
+  segmentRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  segmentItem: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentItemActive: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#fbcfe8',
+  },
+  segmentTxt: { fontSize: 12, fontWeight: '800', color: '#9ca3af' },
+  segmentTxtActive: { color: '#ec4899' },
+
+  measureRow: { flexDirection: 'row', gap: 10 },
+  measureField: { flex: 1 },
 
   /* Password reset */
   passwordResetBtn: {
