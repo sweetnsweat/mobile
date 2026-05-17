@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 import { getStoredAuth } from './AuthService';
 
-const BASE_URL = 'http://100.89.171.113:8080/api';
+const BASE_URL = API_BASE_URL;
 
 export interface StoryPlayRequest {
   scenario_id?: number;
@@ -169,4 +170,108 @@ function stringifyChoiceValue(value: unknown): string {
     if (nestedText) return nestedText;
   }
   return '';
+}
+
+// ─── 채팅 목록/입장 API ────────────────────────────────────────────────────────
+
+export interface StoryChatRepresentativeCharacter {
+  id: number;
+  name: string;
+  title: string;
+  type: string;
+  imageUrl: string;
+  quote: string;
+  tags: string[];
+}
+
+export interface StoryChatItem {
+  progressId: number;
+  scenarioId: number;
+  scenarioTitle: string;
+  worldTitle: string;
+  summary: string;
+  genre: string;
+  thumbnailUrl: string;
+  worldImageUrl: string;
+  playerImageUrl: string;
+  representativeCharacter: StoryChatRepresentativeCharacter | null;
+  displayName: string | null;
+  imageUrl: string;
+  backgroundImageUrl: string;
+  status: string;
+  currentChapterNum: number;
+  phase: string;
+  lastMessage: string | null;
+  startedAt: string;
+  updatedAt: string;
+  historyEndpoint: string;
+  playEndpoint: string;
+}
+
+export interface StoryChatListResponse {
+  limit: number;
+  totalCount: number;
+  chats: StoryChatItem[];
+}
+
+export interface StoryChatCharacter {
+  id: number;
+  name: string;
+  title: string;
+  type: string;
+  imageUrl: string;
+  quote: string;
+  tags: string[];
+  representative: boolean;
+}
+
+export interface StoryChatMessage {
+  id: number;
+  chapterNum: number;
+  choiceId: number | null;
+  detailId: number | null;
+  unitIndex: number;
+  userMessage: string | null;
+  narrationText: string | null;
+  dialogueText: string | null;
+  outputText: string;
+  createdAt: string;
+}
+
+export interface StoryChatRoomInfo {
+  progressId: number;
+  scenarioId: number;
+  scenarioTitle: string;
+  displayName: string | null;
+  imageUrl: string;
+  backgroundImageUrl: string;
+  status: string;
+  currentChapterNum: number;
+  phase: string;
+  lastMessage: string | null;
+}
+
+export interface StoryChatRoomResponse {
+  chat: StoryChatRoomInfo;
+  characters: StoryChatCharacter[];
+  messageLimit: number;
+  messageTotalCount: number;
+  hasMoreMessages: boolean;
+  recentMessages: StoryChatMessage[];
+}
+
+export async function getStoryChatList(limit = 50): Promise<StoryChatListResponse> {
+  const response = await axios.get<{ data: StoryChatListResponse }>(
+    `${BASE_URL}/stories/chats`,
+    { params: { limit }, headers: authHeader() },
+  );
+  return response.data.data;
+}
+
+export async function getStoryChatRoom(scenarioId: number, messageLimit = 30): Promise<StoryChatRoomResponse> {
+  const response = await axios.get<{ data: StoryChatRoomResponse }>(
+    `${BASE_URL}/stories/chats/${scenarioId}`,
+    { params: { messageLimit }, headers: authHeader() },
+  );
+  return response.data.data;
 }

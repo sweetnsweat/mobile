@@ -303,7 +303,7 @@ export function WorldRankingScreen({ navigation }: Props) {
           const scenarioId = previewId;
           setPreviewId(null);
           if (scenarioId != null) {
-            navigation.navigate('CharacterQuest', { scenario_id: scenarioId });
+            navigation.navigate('WorldIntro', { scenario_id: scenarioId });
           }
         }}
       />

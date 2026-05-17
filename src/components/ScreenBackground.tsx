@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { Colors } from '../constants/colors';
 
 interface Props {
@@ -18,17 +17,32 @@ export function ScreenBackground({
   end = { x: 1, y: 1 },
   useGradient = true,
 }: Props) {
-  if (!useGradient) {
-    return <View style={[s.root, { backgroundColor: colors[0] }]}>{children}</View>;
-  }
-
   return (
-    <LinearGradient colors={colors} start={start} end={end} style={s.root}>
+    <View style={[s.root, { backgroundColor: colors[0] }]}>
+      {useGradient && (
+        <View
+          pointerEvents="none"
+          style={[
+            s.tint,
+            {
+              backgroundColor: colors[1],
+              opacity: start.x === end.x && start.y === end.y ? 0 : 0.45,
+            },
+          ]}
+        />
+      )}
       {children}
-    </LinearGradient>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+  tint: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
 });

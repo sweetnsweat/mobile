@@ -8,7 +8,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronRight, Flame, Bell, Moon, Shield, LogOut,
-  Edit3, Camera, Star, TrendingUp, Activity, Calendar,
+  Camera, Star, TrendingUp, Activity, Calendar,
   Heart, Settings,
 } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -19,6 +19,7 @@ import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { logout, getStoredAuth, clearStoredAuth } from '../../services/AuthService';
 import { getMyProfile } from '../../services/UserService';
 import { getWeeklyStats, WeeklyStatsResponse } from '../../services/StatsService';
+import { API_ORIGIN } from '../../config/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
 
@@ -39,6 +40,11 @@ const BADGES = [
   { emoji: '🎯', label: '목표달성', colors: ['#34d399','#2dd4bf'] as [string,string] },
 ];
 
+function resolveProfileImageUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
+}
 
 type SettingIcon = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
@@ -46,7 +52,7 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
   { Icon: Bell,    label: '알림 설정',   sub: '퀘스트·랭킹 알림', toggle: true, toggleKey: 'bell' },
   { Icon: Moon,    label: '다크 모드',   sub: '앱 테마 변경',      toggle: true, toggleKey: 'dark' },
   { Icon: Shield,  label: '개인정보 보호', sub: '계정 공개 범위' },
-  { Icon: Settings,label: '계정 설정',   sub: '이메일·비밀번호' },
+  { Icon: Settings,label: '회원정보 수정',   sub: '' },
   { Icon: LogOut,  label: '로그아웃',    sub: '', danger: true },
 ];
 
@@ -54,15 +60,26 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
 export function MypageScreen({ navigation }: Props) {
   const [toggles, setToggles] = useState<Record<string, boolean>>({ bell: true, dark: false });
   const [nickname, setNickname] = useState(PROFILE.name);
+  const [profileImageUrl, setProfileImageUrl] = useState('');
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
   const expPct = Math.round((PROFILE.exp / PROFILE.expMax) * 100);
 
-  React.useEffect(() => {
-    getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
-  }, []);
-
   useFocusEffect(useCallback(() => {
+    let isActive = true;
+
+    getMyProfile()
+      .then(p => {
+        if (!isActive) return;
+        setNickname(p.nickname);
+        setProfileImageUrl(resolveProfileImageUrl(p.profileImageUrl));
+      })
+      .catch(() => {});
+
     getWeeklyStats().then(setWeeklyStats).catch(() => setWeeklyStats(null));
+
+    return () => {
+      isActive = false;
+    };
   }, []));
 
   const handleLogout = async () => {
@@ -84,9 +101,6 @@ export function MypageScreen({ navigation }: Props) {
             <Text style={s.headerSub}>My Profile</Text>
             <Text style={s.headerTitle}>마이페이지 ✨</Text>
           </View>
-          <TouchableOpacity style={s.editBtn}>
-            <Edit3 size={16} color="#4b5563" strokeWidth={2.5} />
-          </TouchableOpacity>
         </View>
 
         {/* Scroll body */}
@@ -96,7 +110,7 @@ export function MypageScreen({ navigation }: Props) {
             <View style={s.profileTop}>
               <View style={s.avatarWrap}>
                 <View style={s.avatarImg}>
-                  <ImageWithFallback uri={PROFILE.avatar} style={s.avatarImgInner} />
+                  <ImageWithFallback uri={profileImageUrl} style={s.avatarImgInner} />
                 </View>
                 <LinearGradient colors={['#ec4899','#0ea5e9']} style={s.cameraBtn}>
                   <Camera size={12} color="#fff" strokeWidth={2.5} />
@@ -221,6 +235,7 @@ export function MypageScreen({ navigation }: Props) {
                     key={label}
                     onPress={() => {
                       if (danger) { handleLogout(); }
+                      else if (label === '회원정보 수정') { navigation.navigate('EditProfile'); }
                       else if (toggleKey) { setToggles(p => ({ ...p, [toggleKey]: !p[toggleKey] })); }
                     }}
                     style={[s.settingRow, i < SETTINGS.length - 1 && s.settingBorder]}

@@ -1,8 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL, API_ORIGIN } from '../config/api';
 import { getStoredAuth } from './AuthService';
 
-const API_BASE_URL = 'http://100.89.171.113:8080';
-const BASE_URL = `${API_BASE_URL}/api`;
+const BASE_URL = API_BASE_URL;
 
 export interface WorldBannerSlide {
   scenarioId: number;
@@ -140,7 +140,7 @@ function authHeader(): Record<string, string> {
 export function resolveMediaUrl(url?: string | null): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 export async function getWorldBanners(limit = 3): Promise<WorldBannerSlide[]> {

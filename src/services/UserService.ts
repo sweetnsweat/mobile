@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 import { getStoredAuth } from './AuthService';
 
-const BASE_URL = 'http://100.89.171.113:8080/api/users';
+const BASE_URL = `${API_BASE_URL}/users`;
 
 export interface OnboardingProfileRequest {
   gender: string;
@@ -21,6 +22,7 @@ export interface UserProfileResponse {
   id: number;
   loginId: string;
   nickname: string;
+  email?: string | null;
   gender?: string;
   birthDate?: string;
   heightCm?: number;
@@ -32,6 +34,18 @@ export interface UserProfileResponse {
   todayConditionCompleted: boolean;
   activeRoutineId: number | null;
   routineSetupRequired: boolean;
+  profileImageUrl?: string | null;
+}
+
+export type UserGender = 'male' | 'female' | 'prefer_not_to_say';
+
+export interface UpdateUserInfoRequest {
+  nickname?: string;
+  email?: string;
+  gender?: UserGender;
+  birthDate?: string;
+  heightCm?: number;
+  weightKg?: number;
 }
 
 function authHeader(): Record<string, string> {
@@ -44,6 +58,15 @@ export async function saveOnboardingProfile(req: OnboardingProfileRequest): Prom
   const response = await axios.put<{ data: UserProfileResponse }>(
     `${BASE_URL}/me/onboarding-profile`,
     req,
+    { headers: { 'Content-Type': 'application/json', ...authHeader() } },
+  );
+  return response.data.data;
+}
+
+export async function updateUserInfo(body: UpdateUserInfoRequest): Promise<UserProfileResponse> {
+  const response = await axios.put<{ data: UserProfileResponse }>(
+    `${BASE_URL}/me`,
+    body,
     { headers: { 'Content-Type': 'application/json', ...authHeader() } },
   );
   return response.data.data;
