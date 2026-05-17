@@ -222,7 +222,7 @@ const s = StyleSheet.create({
     elevation: 6,
     backgroundColor: '#1f2937',
   },
-  cardBg: { ...StyleSheet.absoluteFillObject },
+  cardBg: { ...StyleSheet.absoluteFill },
   cardInner: {
     flex: 1,
     flexDirection: 'row',
