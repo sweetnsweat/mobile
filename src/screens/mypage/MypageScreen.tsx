@@ -19,6 +19,7 @@ import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { logout, getStoredAuth, clearStoredAuth } from '../../services/AuthService';
 import { getMyProfile } from '../../services/UserService';
 import { getWeeklyStats, WeeklyStatsResponse } from '../../services/StatsService';
+import { API_ORIGIN } from '../../config/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
 
@@ -39,6 +40,11 @@ const BADGES = [
   { emoji: '🎯', label: '목표달성', colors: ['#34d399','#2dd4bf'] as [string,string] },
 ];
 
+function resolveProfileImageUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
+}
 
 type SettingIcon = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
@@ -54,15 +60,26 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
 export function MypageScreen({ navigation }: Props) {
   const [toggles, setToggles] = useState<Record<string, boolean>>({ bell: true, dark: false });
   const [nickname, setNickname] = useState(PROFILE.name);
+  const [profileImageUrl, setProfileImageUrl] = useState('');
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
   const expPct = Math.round((PROFILE.exp / PROFILE.expMax) * 100);
 
-  React.useEffect(() => {
-    getMyProfile().then(p => setNickname(p.nickname)).catch(() => {});
-  }, []);
-
   useFocusEffect(useCallback(() => {
+    let isActive = true;
+
+    getMyProfile()
+      .then(p => {
+        if (!isActive) return;
+        setNickname(p.nickname);
+        setProfileImageUrl(resolveProfileImageUrl(p.profileImageUrl));
+      })
+      .catch(() => {});
+
     getWeeklyStats().then(setWeeklyStats).catch(() => setWeeklyStats(null));
+
+    return () => {
+      isActive = false;
+    };
   }, []));
 
   const handleLogout = async () => {
@@ -93,7 +110,7 @@ export function MypageScreen({ navigation }: Props) {
             <View style={s.profileTop}>
               <View style={s.avatarWrap}>
                 <View style={s.avatarImg}>
-                  <ImageWithFallback uri={PROFILE.avatar} style={s.avatarImgInner} />
+                  <ImageWithFallback uri={profileImageUrl} style={s.avatarImgInner} />
                 </View>
                 <LinearGradient colors={['#ec4899','#0ea5e9']} style={s.cameraBtn}>
                   <Camera size={12} color="#fff" strokeWidth={2.5} />

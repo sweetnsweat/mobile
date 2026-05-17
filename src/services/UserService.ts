@@ -33,6 +33,7 @@ export interface UserProfileResponse {
   todayConditionCompleted: boolean;
   activeRoutineId: number | null;
   routineSetupRequired: boolean;
+  profileImageUrl?: string | null;
 }
 
 function authHeader(): Record<string, string> {
