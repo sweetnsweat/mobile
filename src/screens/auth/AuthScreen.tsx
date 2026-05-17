@@ -13,6 +13,7 @@ import { GradientText } from '../../components/GradientText';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { useBounceAnimation } from '../../hooks/useBounceAnimation';
 import { login, signup, checkNickname } from '../../services/AuthService';
+import { readSamsungHealthSyncedData } from '../../services/HealthConnectService';
 import { getMyProfile } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
@@ -46,6 +47,61 @@ export function AuthScreen({ navigation }: Props) {
       ])
     ).start();
   }, [fadeAnim, titlePulse]);
+
+  const syncHealthConnectAfterLogin = async () => {
+    if (Platform.OS !== 'android') return;
+
+    try {
+      const endTime = new Date();
+      const startTime = new Date(endTime);
+      startTime.setDate(startTime.getDate() - 30);
+
+      const result = await readSamsungHealthSyncedData({
+        startTime,
+        endTime,
+      });
+
+      const totalRecords = result.results.reduce(
+        (sum, item) => sum + item.records.length,
+        0,
+      );
+      const recordsByType = result.results.map(item => ({
+        recordType: item.recordType,
+        count: item.records.length,
+        pageToken: item.pageToken,
+        error: item.error,
+        records: item.records,
+      }));
+
+      console.log('Health Connect synced after login summary:', {
+        grantedRecordTypes: result.grantedRecordTypes,
+        deniedRecordTypes: result.deniedRecordTypes,
+        totalRecords,
+      });
+      recordsByType.forEach(item => {
+        console.log('Health Connect records by type:', {
+          recordType: item.recordType,
+          count: item.count,
+          pageToken: item.pageToken,
+          error: item.error,
+        });
+
+        item.records.forEach((record, index) => {
+          if (index >= Math.ceil(item.records.length / 2)) return;
+
+          console.log(
+            `Health Connect ${item.recordType} record ${index + 1}/${item.count}:`,
+            JSON.stringify(record),
+          );
+        });
+      });
+    } catch (e) {
+      console.warn(
+        'Health Connect sync skipped after login:',
+        e instanceof Error ? e.message : e,
+      );
+    }
+  };
 
   const handleCheckNickname = async () => {
     const trimmed = nickname.trim();
@@ -102,6 +158,7 @@ export function AuthScreen({ navigation }: Props) {
       if (isLogin) {
         // Login API call
         await login(loginId, password);
+        syncHealthConnectAfterLogin();
         const profile = await getMyProfile();
         if (!profile.onboardingCompleted) navigation.navigate('Onboarding');
         else if (profile.routineSetupRequired) navigation.navigate('RoutineSetup', { todayConditionCompleted: profile.todayConditionCompleted });
