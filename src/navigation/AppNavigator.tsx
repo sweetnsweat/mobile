@@ -24,7 +24,7 @@ import { BattleMatchingScreen } from '../screens/battle/BattleMatchingScreen';
 import { BattleScreen } from '../screens/battle/BattleScreen';
 import { BattleResultScreen } from '../screens/battle/BattleResultScreen';
 import { MypageScreen } from '../screens/mypage/MypageScreen';
-import { CharacterShopScreen } from '../screens/mypage/CharacterShopScreen';
+import { ShopScreen } from '../screens/mypage/ShopScreen';
 import { WorldRankingScreen } from '../screens/world/WorldRankingScreen';
 import { WorldIntroScreen } from '../screens/world/WorldIntroScreen';
 import { ActivityRankingDetailScreen } from '../screens/ActivityRankingDetailScreen';
@@ -62,7 +62,7 @@ export function AppNavigator() {
           <Stack.Screen name="Battle" component={BattleScreen} />
           <Stack.Screen name="BattleResult" component={BattleResultScreen} />
           <Stack.Screen name="Mypage" component={MypageScreen} />
-          <Stack.Screen name="CharacterShop" component={CharacterShopScreen} />
+          <Stack.Screen name="Shop" component={ShopScreen} />
           <Stack.Screen name="WorldRanking" component={WorldRankingScreen} />
           <Stack.Screen name="ActivityRankingDetail" component={ActivityRankingDetailScreen} />
           <Stack.Screen name="StoryChatList" component={StoryChatListScreen} />

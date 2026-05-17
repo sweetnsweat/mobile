@@ -11,7 +11,7 @@ import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CharacterShop'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 type Category = 'character' | 'pass';
 
 /* ────────── 캐릭터 데이터 ────────── */
@@ -152,7 +152,7 @@ function CharCard({ char, selected, onSelect, equipped }: {
 }
 
 /* ────────── 메인 화면 ────────── */
-export function CharacterShopScreen({ navigation }: Props) {
+export function ShopScreen({ navigation }: Props) {
   const [category, setCategory] = useState<Category>('character');
   const [chars, setChars] = useState(CHARACTERS);
   const [gold, setGold] = useState(1200);

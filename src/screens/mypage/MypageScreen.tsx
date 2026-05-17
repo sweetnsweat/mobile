@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronRight, Flame, Bell, Moon, Shield, LogOut,
   Camera, Star, TrendingUp, Activity, Calendar,
-  Heart, Settings,
+  Heart, Settings, ShoppingBag,
 } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
@@ -59,7 +59,7 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
 
 export function MypageScreen({ navigation }: Props) {
   const [toggles, setToggles] = useState<Record<string, boolean>>({ bell: true, dark: false });
-  const [nickname, setNickname] = useState(PROFILE.name);
+  const [nickname, setNickname] = useState('');
   const [profileImageUrl, setProfileImageUrl] = useState('');
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
   const expPct = Math.round((PROFILE.exp / PROFILE.expMax) * 100);
@@ -70,7 +70,7 @@ export function MypageScreen({ navigation }: Props) {
     getMyProfile()
       .then(p => {
         if (!isActive) return;
-        setNickname(p.nickname);
+        setNickname(p.nickname ?? '');
         setProfileImageUrl(resolveProfileImageUrl(p.profileImageUrl));
       })
       .catch(() => {});
@@ -112,9 +112,16 @@ export function MypageScreen({ navigation }: Props) {
                 <View style={s.avatarImg}>
                   <ImageWithFallback uri={profileImageUrl} style={s.avatarImgInner} />
                 </View>
-                <LinearGradient colors={['#ec4899','#0ea5e9']} style={s.cameraBtn}>
-                  <Camera size={12} color="#fff" strokeWidth={2.5} />
-                </LinearGradient>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('Shop')}
+                  accessibilityRole="button"
+                  accessibilityLabel="캐릭터 상점으로 이동"
+                >
+                  <LinearGradient colors={['#ec4899','#0ea5e9']} style={s.cameraBtn}>
+                    <Camera size={12} color="#fff" strokeWidth={2.5} />
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
               <View style={s.profileInfo}>
                 <View style={s.nameRow}>
@@ -220,6 +227,18 @@ export function MypageScreen({ navigation }: Props) {
               ))}
             </View>
           </View>
+
+          {/* 상점 */}
+          <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('Shop')} style={s.shopCard}>
+            <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.shopIconWrap}>
+              <ShoppingBag size={18} color="#fff" strokeWidth={2.5} />
+            </LinearGradient>
+            <View style={s.shopText}>
+              <Text style={s.shopTitle}>상점</Text>
+              <Text style={s.shopSub}>캐릭터 · 이용권 구매</Text>
+            </View>
+            <ChevronRight size={16} color="#d1d5db" strokeWidth={2.5} />
+          </TouchableOpacity>
 
           {/* Settings */}
           <View style={s.section}>
@@ -349,6 +368,12 @@ const s = StyleSheet.create({
   toggleTrack: { width: 40, height: 22, borderRadius: 11, backgroundColor: '#e5e7eb', position: 'relative' },
   toggleTrackOn: { backgroundColor: '#f472b6' },
   toggleThumb: { position: 'absolute', top: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 2, elevation: 2 },
+
+  shopCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  shopIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  shopText: { flex: 1 },
+  shopTitle: { fontSize: 14, fontWeight: '900', color: '#111827' },
+  shopSub: { fontSize: 11, fontWeight: '600', color: '#9ca3af', marginTop: 1 },
 
   banner: { borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   bannerIcon: { width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
