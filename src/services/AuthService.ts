@@ -132,10 +132,10 @@ export const findLoginId = async (email: string): Promise<void> => {
   }
 };
 
-// 임시 비밀번호 발급 — 이메일로 임시 비밀번호 발송
-export const requestPasswordReset = async (email: string): Promise<void> => {
+// 임시 비밀번호 발급 — 로그인 아이디와 이메일 확인 후 임시 비밀번호 발송
+export const requestPasswordReset = async (loginId: string, email: string): Promise<void> => {
   try {
-    await api.post('/password-reset/request', { email });
+    await api.post('/password-reset/request', { loginId, email });
   } catch (error: any) {
     if (error.response) {
       throw new Error(error.response.data?.message || '비밀번호 재설정 요청에 실패했습니다.');

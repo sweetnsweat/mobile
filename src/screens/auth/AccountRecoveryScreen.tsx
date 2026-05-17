@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, ArrowRight, ChevronLeft, CheckCircle } from 'lucide-react-native';
+import { Mail, ArrowRight, ChevronLeft, CheckCircle, User } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { GradientText } from '../../components/GradientText';
@@ -21,6 +21,7 @@ export function AccountRecoveryScreen({ navigation, route }: Props) {
   const isAndroid = Platform.OS === 'android';
 
   const [tab, setTab] = useState<Tab>(route.params?.initialTab ?? 'id');
+  const [loginId, setLoginId] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -38,13 +39,23 @@ export function AccountRecoveryScreen({ navigation, route }: Props) {
   function switchTab(next: Tab) {
     if (tab === next) return;
     setTab(next);
+    setLoginId('');
     setEmail('');
     setError('');
     setSuccess(false);
   }
 
   async function handleSubmit() {
+    const trimmedLoginId = loginId.trim();
     const trimmed = email.trim();
+    if (tab === 'password' && !trimmedLoginId) {
+      setError('아이디를 입력해주세요.');
+      return;
+    }
+    if (tab === 'password' && (trimmedLoginId.length < 4 || trimmedLoginId.length > 50)) {
+      setError('아이디는 4~50자로 입력해주세요.');
+      return;
+    }
     if (!trimmed) {
       setError('이메일을 입력해주세요.');
       return;
@@ -60,7 +71,7 @@ export function AccountRecoveryScreen({ navigation, route }: Props) {
       if (tab === 'id') {
         await findLoginId(trimmed);
       } else {
-        await requestPasswordReset(trimmed);
+        await requestPasswordReset(trimmedLoginId, trimmed);
       }
       setSuccess(true);
     } catch (e: any) {
@@ -150,7 +161,7 @@ export function AccountRecoveryScreen({ navigation, route }: Props) {
               <Text style={s.desc}>
                 {tab === 'id'
                   ? '가입 시 사용한 이메일을 입력하면 아이디를 메일로 안내해드립니다.'
-                  : '가입 시 사용한 이메일을 입력하면 \n 임시 비밀번호를 메일로 보내드립니다.'}
+                  : '아이디와 가입 이메일이 일치하면 \n 임시 비밀번호를 메일로 보내드립니다.'}
               </Text>
 
               {/* Success state */}
@@ -182,7 +193,7 @@ export function AccountRecoveryScreen({ navigation, route }: Props) {
                   )}
                   {tab === 'id' && (
                     <TouchableOpacity
-                      onPress={() => { setSuccess(false); setEmail(''); }}
+                      onPress={() => { setSuccess(false); setLoginId(''); setEmail(''); }}
                       activeOpacity={0.7}
                     >
                       <Text style={s.retryTxt}>다시 입력하기</Text>
@@ -193,6 +204,21 @@ export function AccountRecoveryScreen({ navigation, route }: Props) {
                 <>
                   {/* Email input */}
                   <View style={s.inputs}>
+                    {tab === 'password' && (
+                      <View style={s.inputRow}>
+                        {!isAndroid && <User size={20} color="#f472b6" strokeWidth={2} />}
+                        <TextInput
+                          placeholder="로그인 아이디"
+                          placeholderTextColor="#9ca3af"
+                          value={loginId}
+                          onChangeText={t => { setLoginId(t); setError(''); }}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          textContentType="username"
+                          style={s.input}
+                        />
+                      </View>
+                    )}
                     <View style={s.inputRow}>
                       {!isAndroid && <Mail size={20} color="#f472b6" strokeWidth={2} />}
                       <TextInput
