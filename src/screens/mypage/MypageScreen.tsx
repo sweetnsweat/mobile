@@ -17,6 +17,10 @@ import { ScreenBackground } from '../../components/ScreenBackground';
 import { BottomNav } from '../../components/BottomNav';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { logout, getStoredAuth, clearStoredAuth } from '../../services/AuthService';
+import {
+  deactivateRegisteredFcmToken,
+  registerFcmTokenForCurrentUser,
+} from '../../services/FcmService';
 import { getMyProfile } from '../../services/UserService';
 import { getWeeklyStats, WeeklyStatsResponse } from '../../services/StatsService';
 import { API_ORIGIN } from '../../config/api';
@@ -85,10 +89,28 @@ export function MypageScreen({ navigation }: Props) {
   const handleLogout = async () => {
     const auth = getStoredAuth();
     if (auth) {
+      await deactivateRegisteredFcmToken(auth.accessToken);
       await logout(auth.accessToken);
       clearStoredAuth();
     }
     navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
+  };
+
+  const handleToggleNotification = async () => {
+    const next = !toggles.bell;
+    setToggles(p => ({ ...p, bell: next }));
+
+    const auth = getStoredAuth();
+    if (!auth) return;
+
+    if (next) {
+      const registered = await registerFcmTokenForCurrentUser();
+      if (!registered) {
+        setToggles(p => ({ ...p, bell: false }));
+      }
+    } else {
+      await deactivateRegisteredFcmToken(auth.accessToken);
+    }
   };
 
   return (
@@ -236,6 +258,7 @@ export function MypageScreen({ navigation }: Props) {
                     onPress={() => {
                       if (danger) { handleLogout(); }
                       else if (label === '회원정보 수정') { navigation.navigate('EditProfile'); }
+                      else if (toggleKey === 'bell') { handleToggleNotification(); }
                       else if (toggleKey) { setToggles(p => ({ ...p, [toggleKey]: !p[toggleKey] })); }
                     }}
                     style={[s.settingRow, i < SETTINGS.length - 1 && s.settingBorder]}

@@ -13,6 +13,7 @@ import { GradientText } from '../../components/GradientText';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { useBounceAnimation } from '../../hooks/useBounceAnimation';
 import { login, signup, checkNickname } from '../../services/AuthService';
+import { registerFcmTokenForCurrentUser } from '../../services/FcmService';
 import { readSamsungHealthSyncedData } from '../../services/HealthConnectService';
 import { getMyProfile } from '../../services/UserService';
 
@@ -158,6 +159,7 @@ export function AuthScreen({ navigation }: Props) {
       if (isLogin) {
         // Login API call
         await login(loginId, password);
+        registerFcmTokenForCurrentUser();
         syncHealthConnectAfterLogin();
         const profile = await getMyProfile();
         if (!profile.onboardingCompleted) navigation.navigate('Onboarding');
