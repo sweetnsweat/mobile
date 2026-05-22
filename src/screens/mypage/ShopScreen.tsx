@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  StatusBar, Animated, FlatList,
+  StatusBar, Animated, FlatList, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,25 +10,38 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { equipShopItem, getShopItems, purchaseShopItem, ShopItem } from '../../services/ShopService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 type Category = 'character' | 'pass';
+type ColorPair = [string, string];
+
+type Char = {
+  id: number;
+  image: string;
+  name: string;
+  desc: string;
+  cost: number;
+  owned: boolean;
+  special: boolean;
+  bg: ColorPair;
+  equipped: boolean;
+};
+
+type Pass = {
+  id: number;
+  Icon: typeof Shield;
+  name: string;
+  desc: string;
+  effect: string;
+  cost: number;
+  colors: ColorPair;
+  iconColor: string;
+  ownedQuantity: number;
+};
 
 /* ────────── 캐릭터 데이터 ────────── */
-const CHARACTERS = [
-  { id: 0,  image: 'https://i.imgur.com/v0njcuh.png',  name: '이수연',   desc: '체대 입시생 · 인내력', cost: 0,    owned: true,  special: false, bg: ['#fce7f3','#ffe4e6'] as [string,string] },
-  { id: 1,  image: 'https://i.imgur.com/83q0Fz8.jpeg', name: '칼라일',   desc: '불의 전사 · 투지',     cost: 300,  owned: true,  special: false, bg: ['#ffedd5','#fef3c7'] as [string,string] },
-  { id: 2,  image: '',                                  name: '제로스',   desc: '번개 추적자 · 민첩',   cost: 500,  owned: true,  special: false, bg: ['#fef9c3','#ecfccb'] as [string,string] },
-  { id: 3,  image: '',                                  name: '하나엘',   desc: '꽃의 정령 · 평온',     cost: 400,  owned: false, special: false, bg: ['#fce7f3','#fdf4ff'] as [string,string] },
-  { id: 4,  image: '',                                  name: '드라켄',   desc: '용기사 · 지배력',      cost: 800,  owned: false, special: true,  bg: ['#d1fae5','#ccfbf1'] as [string,string] },
-  { id: 5,  image: '',                                  name: '마린',     desc: '파도 항해사 · 자유',   cost: 450,  owned: false, special: false, bg: ['#e0f2fe','#dbeafe'] as [string,string] },
-  { id: 6,  image: '',                                  name: '루나르',   desc: '달의 암살자 · 집중력', cost: 600,  owned: false, special: false, bg: ['#ede9fe','#f3e8ff'] as [string,string] },
-  { id: 7,  image: '',                                  name: '카일린',   desc: '여우 도적 · 기민함',   cost: 350,  owned: false, special: false, bg: ['#ffedd5','#fee2e2'] as [string,string] },
-  { id: 8,  image: '',                                  name: '세라피나', desc: '왕국의 여왕 · 권위',   cost: 1200, owned: false, special: true,  bg: ['#fef9c3','#fef3c7'] as [string,string] },
-  { id: 9,  image: '',                                  name: '아스트라', desc: '별의 여행자 · 희망',   cost: 550,  owned: false, special: false, bg: ['#fef3c7','#fef9c3'] as [string,string] },
-  { id: 10, image: '',                                  name: '리온',     desc: '명중 사수 · 집중',     cost: 420,  owned: false, special: false, bg: ['#d1fae5','#dcfce7'] as [string,string] },
-  { id: 11, image: '',                                  name: '네오',     desc: '우주 탐험가 · 도전',   cost: 900,  owned: false, special: true,  bg: ['#e0f2fe','#e0e7ff'] as [string,string] },
-];
+const DEFAULT_CHARACTER_BG: ColorPair = ['#fce7f3', '#ffe4e6'];
 
 const CHAR_FILTERS = [
   { key: 'all',     label: '전체'    },
@@ -38,53 +51,14 @@ const CHAR_FILTERS = [
 ];
 
 /* ────────── 이용권 데이터 ────────── */
-const PASSES = [
-  {
-    id: 0, emoji: '🛡️', Icon: Shield,
-    name: '기록 방어권',
-    desc: '이번 주 최고 기록을 유지해 줘요',
-    effect: '최고 기록 보호 · 1회',
-    cost: 300,
-    colors: ['#fdf2f8', '#fce7f3'] as [string,string],
-    iconColor: '#ec4899',
-  },
-  {
-    id: 1, emoji: '📈', Icon: TrendingUp,
-    name: '승률하락 방어권',
-    desc: '패배해도 배틀 승률이 내려가지 않아요',
-    effect: '승률 보호 · 1회',
-    cost: 500,
-    colors: ['#f0f9ff', '#e0f2fe'] as [string,string],
-    iconColor: '#0ea5e9',
-  },
-  {
-    id: 2, emoji: '⚡', Icon: Zap,
-    name: 'EXP 2배권',
-    desc: '24시간 동안 경험치가 2배로 쌓여요',
-    effect: 'EXP ×2 · 24시간',
-    cost: 200,
-    colors: ['#fefce8', '#fef9c3'] as [string,string],
-    iconColor: '#ca8a04',
-  },
-  {
-    id: 3, emoji: '🔄', Icon: RotateCcw,
-    name: '배틀 부활권',
-    desc: '배틀 패배 시 즉시 재도전할 수 있어요',
-    effect: '재도전 1회',
-    cost: 400,
-    colors: ['#f0fdf4', '#dcfce7'] as [string,string],
-    iconColor: '#16a34a',
-  },
-  {
-    id: 4, emoji: '🎯', Icon: Target,
-    name: '퀘스트 스킵권',
-    desc: '오늘의 퀘스트를 건너뛸 수 있어요',
-    effect: '퀘스트 스킵 · 1회',
-    cost: 150,
-    colors: ['#ede9fe', '#f3e8ff'] as [string,string],
-    iconColor: '#7c3aed',
-  },
+const PASS_PRESENTATION = [
+  { keyword: '방어', Icon: Shield, colors: ['#fdf2f8', '#fce7f3'] as ColorPair, iconColor: '#ec4899' },
+  { keyword: '승률', Icon: TrendingUp, colors: ['#f0f9ff', '#e0f2fe'] as ColorPair, iconColor: '#0ea5e9' },
+  { keyword: 'EXP', Icon: Zap, colors: ['#fefce8', '#fef9c3'] as ColorPair, iconColor: '#ca8a04' },
+  { keyword: '부활', Icon: RotateCcw, colors: ['#f0fdf4', '#dcfce7'] as ColorPair, iconColor: '#16a34a' },
+  { keyword: '스킵', Icon: Target, colors: ['#ede9fe', '#f3e8ff'] as ColorPair, iconColor: '#7c3aed' },
 ];
+const DEFAULT_PASS_PRESENTATION = PASS_PRESENTATION[0];
 
 /* ────────── 공통 컴포넌트 ────────── */
 function CoinDot({ size = 13 }: { size?: number }) {
@@ -96,10 +70,50 @@ function CoinDot({ size = 13 }: { size?: number }) {
   );
 }
 
-type Char = typeof CHARACTERS[0];
+function metadataString(item: ShopItem, key: string): string | null {
+  const value = item.metadata?.[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function metadataColors(item: ShopItem, fallback: ColorPair): ColorPair {
+  const value = item.metadata?.bg;
+  if (Array.isArray(value) && typeof value[0] === 'string' && typeof value[1] === 'string') {
+    return [value[0], value[1]];
+  }
+  return fallback;
+}
+
+function mapCharacter(item: ShopItem): Char {
+  return {
+    id: item.id,
+    image: item.imageUrl ?? '',
+    name: item.name,
+    desc: item.description ?? metadataString(item, 'subtitle') ?? '',
+    cost: item.priceCurrency,
+    owned: item.owned,
+    special: item.special,
+    bg: metadataColors(item, DEFAULT_CHARACTER_BG),
+    equipped: item.equipped,
+  };
+}
+
+function mapPass(item: ShopItem): Pass {
+  const presentation = PASS_PRESENTATION.find(entry => item.name.includes(entry.keyword)) ?? DEFAULT_PASS_PRESENTATION;
+  return {
+    id: item.id,
+    Icon: presentation.Icon,
+    name: item.name,
+    desc: item.description ?? '',
+    effect: item.effect ?? metadataString(item, 'effectLabel') ?? '보유 아이템',
+    cost: item.priceCurrency,
+    colors: metadataColors(item, presentation.colors),
+    iconColor: presentation.iconColor,
+    ownedQuantity: item.ownedQuantity,
+  };
+}
 
 function CharCard({ char, selected, onSelect, equipped }: {
-  char: Char; selected: number; onSelect: (id: number) => void; equipped: number;
+  char: Char; selected: number | null; onSelect: (id: number) => void; equipped: number | null;
 }) {
   const locked = !char.owned;
   const isSel = selected === char.id;
@@ -154,23 +168,55 @@ function CharCard({ char, selected, onSelect, equipped }: {
 /* ────────── 메인 화면 ────────── */
 export function ShopScreen({ navigation }: Props) {
   const [category, setCategory] = useState<Category>('character');
-  const [chars, setChars] = useState(CHARACTERS);
-  const [gold, setGold] = useState(1200);
-  const [selected, setSelected] = useState(0);
+  const [chars, setChars] = useState<Char[]>([]);
+  const [passes, setPasses] = useState<Pass[]>([]);
+  const [gold, setGold] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [toast, setToast] = useState<string | null>(null);
-  const [equipped, setEquipped] = useState(0);
+  const [equipped, setEquipped] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
-  function showToast(msg: string) {
+  const showToast = useCallback((msg: string) => {
     setToast(msg);
     Animated.sequence([
       Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
       Animated.delay(1800),
       Animated.timing(toastOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start(() => setToast(null));
-  }
+  }, [toastOpacity]);
+
+  const loadShop = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [characterResponse, passResponse] = await Promise.all([
+        getShopItems('character'),
+        getShopItems('pass'),
+      ]);
+      const nextChars = characterResponse.items.map(mapCharacter);
+      const nextPasses = passResponse.items.map(mapPass);
+      const equippedChar = nextChars.find(char => char.equipped);
+      setChars(nextChars);
+      setPasses(nextPasses);
+      setGold(characterResponse.balanceCurrency ?? passResponse.balanceCurrency ?? 0);
+      setEquipped(equippedChar?.id ?? null);
+      setSelected(prev => (prev != null && nextChars.some(char => char.id === prev)) ? prev : nextChars[0]?.id ?? null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '상점 정보를 불러오지 못했습니다.';
+      setError(message);
+      showToast(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadShop();
+  }, [loadShop]);
 
   const filtered = chars.filter(c => {
     if (activeFilter === 'owned')   return c.owned;
@@ -182,25 +228,46 @@ export function ShopScreen({ navigation }: Props) {
   const selectedChar = chars.find(c => c.id === selected);
   const canBuy = selectedChar && !selectedChar.owned && gold >= selectedChar.cost;
 
-  function handleBuy() {
+  async function handleBuy() {
     if (!selectedChar || selectedChar.owned || gold < selectedChar.cost) return;
-    setGold(g => g - selectedChar.cost);
-    setChars(prev => prev.map(c => c.id === selectedChar.id ? { ...c, owned: true } : c));
-    showToast(`${selectedChar.name} 해금 완료! 🎉`);
+    try {
+      const response = await purchaseShopItem(selectedChar.id);
+      setGold(response.balanceCurrency);
+      setChars(prev => prev.map(c => c.id === selectedChar.id ? { ...c, owned: true } : c));
+      showToast(`${selectedChar.name} 해금 완료!`);
+      loadShop();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '구매에 실패했습니다.');
+    }
   }
 
-  function handleEquip() {
+  async function handleEquip() {
     if (!selectedChar || !selectedChar.owned) return;
-    setEquipped(selectedChar.id);
+    try {
+      await equipShopItem(selectedChar.id);
+      setEquipped(selectedChar.id);
+      setChars(prev => prev.map(c => ({ ...c, equipped: c.id === selectedChar.id })));
+      showToast(`${selectedChar.name} 적용 완료`);
+      loadShop();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '적용에 실패했습니다.');
+    }
   }
 
-  function handleBuyPass(pass: typeof PASSES[0]) {
+  async function handleBuyPass(pass: Pass) {
     if (gold < pass.cost) {
-      showToast('골드가 부족해요 😢');
+      showToast('골드가 부족해요');
       return;
     }
-    setGold(g => g - pass.cost);
-    showToast(`${pass.name} 구매 완료! 🎉`);
+    try {
+      const response = await purchaseShopItem(pass.id);
+      setGold(response.balanceCurrency);
+      setPasses(prev => prev.map(item => item.id === pass.id ? { ...item, ownedQuantity: item.ownedQuantity + 1 } : item));
+      showToast(`${pass.name} 구매 완료!`);
+      loadShop();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '구매에 실패했습니다.');
+    }
   }
 
   const btnLabel = selectedChar
@@ -266,8 +333,25 @@ export function ShopScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
+        {loading && (
+          <View style={s.emptyWrap}>
+            <ActivityIndicator color="#ec4899" />
+            <Text style={s.emptyTxt}>상점 정보를 불러오는 중이에요</Text>
+          </View>
+        )}
+
+        {!loading && error && (
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyEmoji}>!</Text>
+            <Text style={s.emptyTxt}>{error}</Text>
+            <TouchableOpacity activeOpacity={0.85} onPress={loadShop} style={s.retryBtn}>
+              <Text style={s.retryTxt}>다시 불러오기</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── 캐릭터 탭 ── */}
-        {category === 'character' && (
+        {!loading && !error && category === 'character' && (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroll} contentContainerStyle={s.filterContent}>
               {CHAR_FILTERS.map(({ key, label }) => (
@@ -343,10 +427,10 @@ export function ShopScreen({ navigation }: Props) {
         )}
 
         {/* ── 이용권 탭 ── */}
-        {category === 'pass' && (
+        {!loading && !error && category === 'pass' && (
           <ScrollView style={s.passScroll} contentContainerStyle={s.passContent} showsVerticalScrollIndicator={false}>
             <Text style={s.passSectionLabel}>배틀 · 기록 보호 아이템</Text>
-            {PASSES.map(pass => {
+            {passes.map(pass => {
               const canAfford = gold >= pass.cost;
               const PassIcon = pass.Icon;
               return (
@@ -358,7 +442,7 @@ export function ShopScreen({ navigation }: Props) {
                     <Text style={s.passName}>{pass.name}</Text>
                     <Text style={s.passDesc}>{pass.desc}</Text>
                     <View style={s.passEffectBadge}>
-                      <Text style={s.passEffectTxt}>{pass.effect}</Text>
+                      <Text style={s.passEffectTxt}>{pass.effect}{pass.ownedQuantity > 0 ? ` · 보유 ${pass.ownedQuantity}` : ''}</Text>
                     </View>
                   </View>
                   <TouchableOpacity
@@ -427,6 +511,8 @@ const s = StyleSheet.create({
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   emptyEmoji: { fontSize: 32 },
   emptyTxt: { fontSize: 13, fontWeight: '700', color: '#d1d5db' },
+  retryBtn: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', paddingHorizontal: 14, paddingVertical: 8 },
+  retryTxt: { fontSize: 12, fontWeight: '900', color: '#ec4899' },
 
   grid: { flex: 1 },
   gridContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
