@@ -31,12 +31,11 @@ type Filter = 'all' | 'owned' | 'locked' | 'special';
 type CardItem = ShopItem & { bg: [string, string] };
 
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'owned', label: 'Owned' },
-  { key: 'locked', label: 'Locked' },
-  { key: 'special', label: 'Special' },
+  { key: 'all', label: '전체' },
+  { key: 'owned', label: '보유' },
+  { key: 'locked', label: '미보유' },
+  { key: 'special', label: '스페셜' },
 ];
-const DEFAULT_PASS_PRESENTATION = PASS_PRESENTATION[0];
 
 function CoinDot({ size = 13 }: { size?: number }) {
   return (
@@ -119,7 +118,7 @@ function CharacterCard({
         {item.owned ? (
           <View style={item.equipped ? s.usingBadge : s.ownedBadge}>
             <Text style={item.equipped ? s.usingBadgeTxt : s.ownedBadgeTxt}>
-              {item.equipped ? 'Equipped' : `Owned ${item.ownedQuantity}`}
+              {item.equipped ? '장착중' : `보유 ${item.ownedQuantity}`}
             </Text>
           </View>
         ) : (
@@ -141,6 +140,7 @@ export function ShopScreen({ navigation }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -156,6 +156,7 @@ export function ShopScreen({ navigation }: Props) {
 
   async function loadShop() {
     setLoading(true);
+    setError(null);
     try {
       const [characterList, passList] = await Promise.all([
         getShopItems('character'),
@@ -174,7 +175,7 @@ export function ShopScreen({ navigation }: Props) {
           : equipped?.id ?? nextCharacters[0]?.id ?? null,
       );
     } catch (error: any) {
-      Alert.alert('Shop', error?.response?.data?.detail ?? error?.message ?? 'Failed to load shop.');
+      setError(error?.response?.data?.detail ?? error?.message ?? 'Failed to load shop.');
     } finally {
       setLoading(false);
     }
@@ -205,12 +206,12 @@ export function ShopScreen({ navigation }: Props) {
     setActionLoading(true);
     try {
       const result = await purchaseShopItem(item.id, { quantity: 1 });
-      await refreshAfterAction(`${item.name} purchased.`, result.balanceCurrency);
+      await refreshAfterAction(`${item.name} 구매 완료`, result.balanceCurrency);
     } catch (error: any) {
       const code = error?.response?.data?.code;
       showToast(code === 'INSUFFICIENT_BALANCE'
-        ? 'Not enough gold.'
-        : error?.response?.data?.detail ?? error?.message ?? 'Purchase failed.');
+        ? '골드가 부족해요'
+        : error?.response?.data?.detail ?? error?.message ?? '구매에 실패했어요');
     } finally {
       setActionLoading(false);
     }
@@ -221,12 +222,12 @@ export function ShopScreen({ navigation }: Props) {
     setActionLoading(true);
     try {
       await equipShopItem(item.id);
-      await refreshAfterAction(`${item.name} equipped.`);
+      await refreshAfterAction(`${item.name} 장착 완료`);
     } catch (error: any) {
       const code = error?.response?.data?.code;
       showToast(code === 'ITEM_NOT_OWNED'
-        ? 'You do not own this item.'
-        : error?.response?.data?.detail ?? error?.message ?? 'Equip failed.');
+        ? '보유하지 않은 아이템이에요'
+        : error?.response?.data?.detail ?? error?.message ?? '장착에 실패했어요');
     } finally {
       setActionLoading(false);
     }
@@ -234,13 +235,13 @@ export function ShopScreen({ navigation }: Props) {
 
   function selectedButtonLabel() {
     if (!selectedItem) return '';
-    if (selectedItem.equipped) return 'Equipped';
-    if (selectedItem.owned) return 'Equip';
-    if (!selectedItem.purchasable) return 'Unavailable';
+    if (selectedItem.equipped) return '장착중';
+    if (selectedItem.owned) return '장착하기';
+    if (!selectedItem.purchasable) return '구매 불가';
     if (gold < selectedItem.priceCurrency) {
-      return `Need ${(selectedItem.priceCurrency - gold).toLocaleString()} more`;
+      return `${(selectedItem.priceCurrency - gold).toLocaleString()} 골드 부족`;
     }
-    return `${selectedItem.priceCurrency.toLocaleString()} gold`;
+    return `${selectedItem.priceCurrency.toLocaleString()} 골드`;
   }
 
   return (
@@ -252,8 +253,8 @@ export function ShopScreen({ navigation }: Props) {
             <ChevronLeft size={16} color="#4b5563" strokeWidth={2.5} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
-            <Text style={s.headerSub}>Shop</Text>
-            <Text style={s.headerTitle}>Store</Text>
+            <Text style={s.headerSub}>SHOP</Text>
+            <Text style={s.headerTitle}>상점</Text>
           </View>
           <View style={s.goldBadge}>
             <CoinDot size={13} />
@@ -271,10 +272,10 @@ export function ShopScreen({ navigation }: Props) {
             >
               {category === tab ? (
                 <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.categoryTabGrad}>
-                  <Text style={s.categoryTabTxtActive}>{tab === 'character' ? 'Character' : 'Pass'}</Text>
+                  <Text style={s.categoryTabTxtActive}>{tab === 'character' ? '캐릭터' : '아이템'}</Text>
                 </LinearGradient>
               ) : (
-                <Text style={s.categoryTabTxt}>{tab === 'character' ? 'Character' : 'Pass'}</Text>
+                <Text style={s.categoryTabTxt}>{tab === 'character' ? '캐릭터' : '아이템'}</Text>
               )}
             </TouchableOpacity>
           ))}
@@ -337,7 +338,7 @@ export function ShopScreen({ navigation }: Props) {
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <View style={s.emptyWrap}>
-                  <Text style={s.emptyTxt}>No items.</Text>
+                  <Text style={s.emptyTxt}>아이템이 없어요</Text>
                 </View>
               }
             />
@@ -388,7 +389,7 @@ export function ShopScreen({ navigation }: Props) {
           </>
         ) : (
           <ScrollView style={s.passScroll} contentContainerStyle={s.passContent} showsVerticalScrollIndicator={false}>
-            <Text style={s.passSectionLabel}>Battle and utility items</Text>
+            <Text style={s.passSectionLabel}>배틀 및 편의 아이템</Text>
             {passes.map(item => {
               const canAfford = gold >= item.priceCurrency;
               return (
@@ -400,7 +401,7 @@ export function ShopScreen({ navigation }: Props) {
                     <Text style={s.passName}>{item.name}</Text>
                     <Text style={s.passDesc}>{item.description ?? ''}</Text>
                     <View style={s.passEffectBadge}>
-                      <Text style={s.passEffectTxt}>{item.effect ?? `Owned ${item.ownedQuantity}`}</Text>
+                      <Text style={s.passEffectTxt}>{item.effect ?? `보유 ${item.ownedQuantity}`}</Text>
                     </View>
                   </View>
                   <TouchableOpacity
@@ -461,7 +462,10 @@ const s = StyleSheet.create({
   filterInactive: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99, backgroundColor: '#fff', borderWidth: 2, borderColor: '#e5e7eb' },
   filterInactiveTxt: { fontSize: 11, fontWeight: '900', color: '#6b7280' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+  emptyEmoji: { fontSize: 28, fontWeight: '900', color: '#f87171', marginBottom: 8 },
   emptyTxt: { fontSize: 13, fontWeight: '700', color: '#d1d5db' },
+  retryBtn: { marginTop: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', paddingHorizontal: 14, paddingVertical: 8 },
+  retryTxt: { fontSize: 12, fontWeight: '900', color: '#ec4899' },
   grid: { flex: 1 },
   gridContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   gridItem: { flex: 1 / 3, padding: 4 },
