@@ -1,92 +1,42 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  StatusBar, Animated, FlatList,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Lock, Shield, TrendingUp, Zap, RotateCcw, Target } from 'lucide-react-native';
+import { ChevronLeft, Lock, Shield, Target, TrendingUp, Zap } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { ScreenBackground } from '../../components/ScreenBackground';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import {
+  equipShopItem,
+  getShopItems,
+  purchaseShopItem,
+  ShopItem,
+} from '../../services/ShopService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 type Category = 'character' | 'pass';
+type Filter = 'all' | 'owned' | 'locked' | 'special';
+type CardItem = ShopItem & { bg: [string, string] };
 
-/* ────────── 캐릭터 데이터 ────────── */
-const CHARACTERS = [
-  { id: 0,  image: 'https://i.imgur.com/v0njcuh.png',  name: '이수연',   desc: '체대 입시생 · 인내력', cost: 0,    owned: true,  special: false, bg: ['#fce7f3','#ffe4e6'] as [string,string] },
-  { id: 1,  image: 'https://i.imgur.com/83q0Fz8.jpeg', name: '칼라일',   desc: '불의 전사 · 투지',     cost: 300,  owned: true,  special: false, bg: ['#ffedd5','#fef3c7'] as [string,string] },
-  { id: 2,  image: '',                                  name: '제로스',   desc: '번개 추적자 · 민첩',   cost: 500,  owned: true,  special: false, bg: ['#fef9c3','#ecfccb'] as [string,string] },
-  { id: 3,  image: '',                                  name: '하나엘',   desc: '꽃의 정령 · 평온',     cost: 400,  owned: false, special: false, bg: ['#fce7f3','#fdf4ff'] as [string,string] },
-  { id: 4,  image: '',                                  name: '드라켄',   desc: '용기사 · 지배력',      cost: 800,  owned: false, special: true,  bg: ['#d1fae5','#ccfbf1'] as [string,string] },
-  { id: 5,  image: '',                                  name: '마린',     desc: '파도 항해사 · 자유',   cost: 450,  owned: false, special: false, bg: ['#e0f2fe','#dbeafe'] as [string,string] },
-  { id: 6,  image: '',                                  name: '루나르',   desc: '달의 암살자 · 집중력', cost: 600,  owned: false, special: false, bg: ['#ede9fe','#f3e8ff'] as [string,string] },
-  { id: 7,  image: '',                                  name: '카일린',   desc: '여우 도적 · 기민함',   cost: 350,  owned: false, special: false, bg: ['#ffedd5','#fee2e2'] as [string,string] },
-  { id: 8,  image: '',                                  name: '세라피나', desc: '왕국의 여왕 · 권위',   cost: 1200, owned: false, special: true,  bg: ['#fef9c3','#fef3c7'] as [string,string] },
-  { id: 9,  image: '',                                  name: '아스트라', desc: '별의 여행자 · 희망',   cost: 550,  owned: false, special: false, bg: ['#fef3c7','#fef9c3'] as [string,string] },
-  { id: 10, image: '',                                  name: '리온',     desc: '명중 사수 · 집중',     cost: 420,  owned: false, special: false, bg: ['#d1fae5','#dcfce7'] as [string,string] },
-  { id: 11, image: '',                                  name: '네오',     desc: '우주 탐험가 · 도전',   cost: 900,  owned: false, special: true,  bg: ['#e0f2fe','#e0e7ff'] as [string,string] },
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'owned', label: 'Owned' },
+  { key: 'locked', label: 'Locked' },
+  { key: 'special', label: 'Special' },
 ];
 
-const CHAR_FILTERS = [
-  { key: 'all',     label: '전체'    },
-  { key: 'owned',   label: '보유 중' },
-  { key: 'locked',  label: '미해금'  },
-  { key: 'special', label: '스페셜'  },
-];
-
-/* ────────── 이용권 데이터 ────────── */
-const PASSES = [
-  {
-    id: 0, emoji: '🛡️', Icon: Shield,
-    name: '기록 방어권',
-    desc: '이번 주 최고 기록을 유지해 줘요',
-    effect: '최고 기록 보호 · 1회',
-    cost: 300,
-    colors: ['#fdf2f8', '#fce7f3'] as [string,string],
-    iconColor: '#ec4899',
-  },
-  {
-    id: 1, emoji: '📈', Icon: TrendingUp,
-    name: '승률하락 방어권',
-    desc: '패배해도 배틀 승률이 내려가지 않아요',
-    effect: '승률 보호 · 1회',
-    cost: 500,
-    colors: ['#f0f9ff', '#e0f2fe'] as [string,string],
-    iconColor: '#0ea5e9',
-  },
-  {
-    id: 2, emoji: '⚡', Icon: Zap,
-    name: 'EXP 2배권',
-    desc: '24시간 동안 경험치가 2배로 쌓여요',
-    effect: 'EXP ×2 · 24시간',
-    cost: 200,
-    colors: ['#fefce8', '#fef9c3'] as [string,string],
-    iconColor: '#ca8a04',
-  },
-  {
-    id: 3, emoji: '🔄', Icon: RotateCcw,
-    name: '배틀 부활권',
-    desc: '배틀 패배 시 즉시 재도전할 수 있어요',
-    effect: '재도전 1회',
-    cost: 400,
-    colors: ['#f0fdf4', '#dcfce7'] as [string,string],
-    iconColor: '#16a34a',
-  },
-  {
-    id: 4, emoji: '🎯', Icon: Target,
-    name: '퀘스트 스킵권',
-    desc: '오늘의 퀘스트를 건너뛸 수 있어요',
-    effect: '퀘스트 스킵 · 1회',
-    cost: 150,
-    colors: ['#ede9fe', '#f3e8ff'] as [string,string],
-    iconColor: '#7c3aed',
-  },
-];
-
-/* ────────── 공통 컴포넌트 ────────── */
 function CoinDot({ size = 13 }: { size?: number }) {
   return (
     <LinearGradient
@@ -96,25 +46,54 @@ function CoinDot({ size = 13 }: { size?: number }) {
   );
 }
 
-type Char = typeof CHARACTERS[0];
+function itemBg(item: ShopItem): [string, string] {
+  const bg = item.metadata?.bg;
+  if (Array.isArray(bg) && typeof bg[0] === 'string' && typeof bg[1] === 'string') {
+    return [bg[0], bg[1]];
+  }
+  return item.category === 'character' ? ['#fce7f3', '#ffe4e6'] : ['#f0f9ff', '#e0f2fe'];
+}
 
-function CharCard({ char, selected, onSelect, equipped }: {
-  char: Char; selected: number; onSelect: (id: number) => void; equipped: number;
+function normalizeItem(item: ShopItem): CardItem {
+  return { ...item, bg: itemBg(item) };
+}
+
+function PassIcon({ item }: { item: CardItem }) {
+  const Icon =
+    item.itemType === 'pvp_badge' ? TrendingUp :
+    item.itemType === 'ticket' ? Shield :
+    item.itemType === 'gift' ? Target :
+    Zap;
+  const color =
+    item.itemType === 'pvp_badge' ? '#0ea5e9' :
+    item.itemType === 'ticket' ? '#ec4899' :
+    item.itemType === 'gift' ? '#7c3aed' :
+    '#ca8a04';
+  return <Icon size={20} color={color} strokeWidth={2.5} />;
+}
+
+function CharacterCard({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: CardItem;
+  selected: boolean;
+  onSelect: () => void;
 }) {
-  const locked = !char.owned;
-  const isSel = selected === char.id;
+  const locked = !item.owned;
 
   return (
     <TouchableOpacity
-      onPress={() => onSelect(char.id)}
+      onPress={onSelect}
       activeOpacity={0.85}
-      style={[s.charCard, isSel ? s.charCardSel : s.charCardNormal]}
+      style={[s.charCard, selected ? s.charCardSel : s.charCardNormal]}
     >
-      <LinearGradient colors={char.bg} style={s.charImgArea}>
-        {char.image ? (
-          <ImageWithFallback uri={char.image} style={[s.charImg, locked && { opacity: 0.4 }]} />
+      <LinearGradient colors={item.bg} style={s.charImgArea}>
+        {item.imageUrl ? (
+          <ImageWithFallback uri={item.imageUrl} style={[s.charImg, locked && { opacity: 0.4 }]} />
         ) : (
-          <View style={[s.charImgPlaceholder, { backgroundColor: char.bg[0] }]} />
+          <View style={[s.charImgPlaceholder, { backgroundColor: item.bg[0] }]} />
         )}
         {locked && (
           <View style={s.lockOverlay}>
@@ -123,27 +102,29 @@ function CharCard({ char, selected, onSelect, equipped }: {
             </View>
           </View>
         )}
-        {isSel && !locked && (
+        {selected && !locked && (
           <LinearGradient colors={['#f472b6', '#38bdf8']} style={s.checkBadge}>
-            <Text style={s.checkBadgeTxt}>✓</Text>
+            <Text style={s.checkBadgeTxt}>OK</Text>
           </LinearGradient>
         )}
-        {char.special && (
+        {item.special && (
           <LinearGradient colors={['#f472b6', '#c084fc']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.specialBadge}>
             <Text style={s.specialBadgeTxt}>SPECIAL</Text>
           </LinearGradient>
         )}
       </LinearGradient>
       <View style={s.charTextArea}>
-        <Text style={s.charName} numberOfLines={1}>{char.name}</Text>
-        {char.owned ? (
-          char.id === equipped
-            ? <View style={s.usingBadge}><Text style={s.usingBadgeTxt}>사용중</Text></View>
-            : <View style={s.ownedBadge}><Text style={s.ownedBadgeTxt}>보유중</Text></View>
+        <Text style={s.charName} numberOfLines={1}>{item.name}</Text>
+        {item.owned ? (
+          <View style={item.equipped ? s.usingBadge : s.ownedBadge}>
+            <Text style={item.equipped ? s.usingBadgeTxt : s.ownedBadgeTxt}>
+              {item.equipped ? 'Equipped' : `Owned ${item.ownedQuantity}`}
+            </Text>
+          </View>
         ) : (
           <View style={s.costRow}>
             <CoinDot size={9} />
-            <Text style={s.costTxt}>{char.cost.toLocaleString()}</Text>
+            <Text style={s.costTxt}>{item.priceCurrency.toLocaleString()}</Text>
           </View>
         )}
       </View>
@@ -151,20 +132,20 @@ function CharCard({ char, selected, onSelect, equipped }: {
   );
 }
 
-/* ────────── 메인 화면 ────────── */
 export function ShopScreen({ navigation }: Props) {
   const [category, setCategory] = useState<Category>('character');
-  const [chars, setChars] = useState(CHARACTERS);
-  const [gold, setGold] = useState(1200);
-  const [selected, setSelected] = useState(0);
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [characters, setCharacters] = useState<CardItem[]>([]);
+  const [passes, setPasses] = useState<CardItem[]>([]);
+  const [gold, setGold] = useState(0);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [equipped, setEquipped] = useState(0);
-
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
-  function showToast(msg: string) {
-    setToast(msg);
+  function showToast(message: string) {
+    setToast(message);
     Animated.sequence([
       Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
       Animated.delay(1800),
@@ -172,63 +153,106 @@ export function ShopScreen({ navigation }: Props) {
     ]).start(() => setToast(null));
   }
 
-  const filtered = chars.filter(c => {
-    if (activeFilter === 'owned')   return c.owned;
-    if (activeFilter === 'locked')  return !c.owned;
-    if (activeFilter === 'special') return c.special;
+  async function loadShop() {
+    setLoading(true);
+    try {
+      const [characterList, passList] = await Promise.all([
+        getShopItems('character'),
+        getShopItems('pass'),
+      ]);
+      const nextCharacters = characterList.items.map(normalizeItem);
+      const nextPasses = passList.items.map(normalizeItem);
+      const equipped = nextCharacters.find(item => item.equipped);
+
+      setCharacters(nextCharacters);
+      setPasses(nextPasses);
+      setGold(characterList.balanceCurrency ?? passList.balanceCurrency ?? 0);
+      setSelectedId(prev =>
+        prev != null && nextCharacters.some(item => item.id === prev)
+          ? prev
+          : equipped?.id ?? nextCharacters[0]?.id ?? null,
+      );
+    } catch (error: any) {
+      Alert.alert('Shop', error?.response?.data?.detail ?? error?.message ?? 'Failed to load shop.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', loadShop);
+    return unsubscribe;
+  }, [navigation]);
+
+  const filteredCharacters = characters.filter(item => {
+    if (filter === 'owned') return item.owned;
+    if (filter === 'locked') return !item.owned;
+    if (filter === 'special') return item.special;
     return true;
   });
+  const selectedItem = characters.find(item => item.id === selectedId);
+  const canBuySelected = !!selectedItem && !selectedItem.owned && selectedItem.purchasable;
 
-  const selectedChar = chars.find(c => c.id === selected);
-  const canBuy = selectedChar && !selectedChar.owned && gold >= selectedChar.cost;
-
-  function handleBuy() {
-    if (!selectedChar || selectedChar.owned || gold < selectedChar.cost) return;
-    setGold(g => g - selectedChar.cost);
-    setChars(prev => prev.map(c => c.id === selectedChar.id ? { ...c, owned: true } : c));
-    showToast(`${selectedChar.name} 해금 완료! 🎉`);
+  async function refreshAfterAction(message: string, nextGold?: number) {
+    if (nextGold != null) setGold(nextGold);
+    showToast(message);
+    await loadShop();
   }
 
-  function handleEquip() {
-    if (!selectedChar || !selectedChar.owned) return;
-    setEquipped(selectedChar.id);
-  }
-
-  function handleBuyPass(pass: typeof PASSES[0]) {
-    if (gold < pass.cost) {
-      showToast('골드가 부족해요 😢');
-      return;
+  async function handlePurchase(item: CardItem) {
+    if (actionLoading || !item.purchasable) return;
+    setActionLoading(true);
+    try {
+      const result = await purchaseShopItem(item.id, { quantity: 1 });
+      await refreshAfterAction(`${item.name} purchased.`, result.balanceCurrency);
+    } catch (error: any) {
+      const code = error?.response?.data?.code;
+      showToast(code === 'INSUFFICIENT_BALANCE'
+        ? 'Not enough gold.'
+        : error?.response?.data?.detail ?? error?.message ?? 'Purchase failed.');
+    } finally {
+      setActionLoading(false);
     }
-    setGold(g => g - pass.cost);
-    showToast(`${pass.name} 구매 완료! 🎉`);
   }
 
-  const btnLabel = selectedChar
-    ? selectedChar.owned
-      ? selectedChar.id === equipped ? '현재 사용 중' : '적용하기'
-      : canBuy
-        ? `${selectedChar.cost.toLocaleString()} 골드로 구매하기`
-        : `골드 부족 (${(selectedChar.cost - gold).toLocaleString()} 더 필요)`
-    : '';
+  async function handleEquip(item: CardItem) {
+    if (actionLoading || !item.owned || item.equipped) return;
+    setActionLoading(true);
+    try {
+      await equipShopItem(item.id);
+      await refreshAfterAction(`${item.name} equipped.`);
+    } catch (error: any) {
+      const code = error?.response?.data?.code;
+      showToast(code === 'ITEM_NOT_OWNED'
+        ? 'You do not own this item.'
+        : error?.response?.data?.detail ?? error?.message ?? 'Equip failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
-  const renderChar = ({ item }: { item: Char }) => (
-    <View style={s.gridItem}>
-      <CharCard char={item} selected={selected} onSelect={setSelected} equipped={equipped} />
-    </View>
-  );
+  function selectedButtonLabel() {
+    if (!selectedItem) return '';
+    if (selectedItem.equipped) return 'Equipped';
+    if (selectedItem.owned) return 'Equip';
+    if (!selectedItem.purchasable) return 'Unavailable';
+    if (gold < selectedItem.priceCurrency) {
+      return `Need ${(selectedItem.priceCurrency - gold).toLocaleString()} more`;
+    }
+    return `${selectedItem.priceCurrency.toLocaleString()} gold`;
+  }
 
   return (
     <ScreenBackground end={{ x: 0, y: 1 }}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <SafeAreaView style={s.safe}>
-        {/* 헤더 */}
         <View style={s.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <ChevronLeft size={16} color="#4b5563" strokeWidth={2.5} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
             <Text style={s.headerSub}>Shop</Text>
-            <Text style={s.headerTitle}>상점 ✨</Text>
+            <Text style={s.headerTitle}>Store</Text>
           </View>
           <View style={s.goldBadge}>
             <CoinDot size={13} />
@@ -236,43 +260,35 @@ export function ShopScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* 카테고리 탭 */}
         <View style={s.categoryWrap}>
-          <TouchableOpacity
-            style={[s.categoryTab, category === 'character' && s.categoryTabActive]}
-            onPress={() => setCategory('character')}
-            activeOpacity={0.8}
-          >
-            {category === 'character' ? (
-              <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.categoryTabGrad}>
-                <Text style={s.categoryTabTxtActive}>캐릭터</Text>
-              </LinearGradient>
-            ) : (
-              <Text style={s.categoryTabTxt}>캐릭터</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.categoryTab, category === 'pass' && s.categoryTabActive]}
-            onPress={() => setCategory('pass')}
-            activeOpacity={0.8}
-          >
-            {category === 'pass' ? (
-              <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.categoryTabGrad}>
-                <Text style={s.categoryTabTxtActive}>이용권</Text>
-              </LinearGradient>
-            ) : (
-              <Text style={s.categoryTabTxt}>이용권</Text>
-            )}
-          </TouchableOpacity>
+          {(['character', 'pass'] as Category[]).map(tab => (
+            <TouchableOpacity
+              key={tab}
+              style={s.categoryTab}
+              onPress={() => setCategory(tab)}
+              activeOpacity={0.8}
+            >
+              {category === tab ? (
+                <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.categoryTabGrad}>
+                  <Text style={s.categoryTabTxtActive}>{tab === 'character' ? 'Character' : 'Pass'}</Text>
+                </LinearGradient>
+              ) : (
+                <Text style={s.categoryTabTxt}>{tab === 'character' ? 'Character' : 'Pass'}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* ── 캐릭터 탭 ── */}
-        {category === 'character' && (
+        {loading ? (
+          <View style={s.loadingWrap}>
+            <ActivityIndicator color="#ec4899" size="large" />
+          </View>
+        ) : category === 'character' ? (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroll} contentContainerStyle={s.filterContent}>
-              {CHAR_FILTERS.map(({ key, label }) => (
-                <TouchableOpacity key={key} onPress={() => setActiveFilter(key)} style={s.filterBtnWrap} activeOpacity={0.8}>
-                  {activeFilter === key ? (
+              {FILTERS.map(({ key, label }) => (
+                <TouchableOpacity key={key} onPress={() => setFilter(key)} style={s.filterBtnWrap} activeOpacity={0.8}>
+                  {filter === key ? (
                     <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.filterActive}>
                       <Text style={s.filterActiveTxt}>{label}</Text>
                     </LinearGradient>
@@ -285,96 +301,105 @@ export function ShopScreen({ navigation }: Props) {
               ))}
             </ScrollView>
 
-            {filtered.length === 0 ? (
-              <View style={s.emptyWrap}>
-                <Text style={s.emptyEmoji}>🔍</Text>
-                <Text style={s.emptyTxt}>해당하는 캐릭터가 없어요</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={filtered}
-                renderItem={renderChar}
-                keyExtractor={item => String(item.id)}
-                numColumns={3}
-                style={s.grid}
-                contentContainerStyle={s.gridContent}
-                showsVerticalScrollIndicator={false}
-              />
-            )}
+            <FlatList
+              data={filteredCharacters}
+              renderItem={({ item }) => (
+                <View style={s.gridItem}>
+                  <CharacterCard
+                    item={item}
+                    selected={item.id === selectedId}
+                    onSelect={() => setSelectedId(item.id)}
+                  />
+                </View>
+              )}
+              keyExtractor={item => String(item.id)}
+              numColumns={3}
+              style={s.grid}
+              contentContainerStyle={s.gridContent}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={s.emptyWrap}>
+                  <Text style={s.emptyTxt}>No items.</Text>
+                </View>
+              }
+            />
 
-            {selectedChar && (
+            {selectedItem && (
               <View style={s.bottomPanel}>
                 <View style={s.panelInfo}>
-                  <LinearGradient colors={selectedChar.bg} style={s.panelImg}>
-                    {selectedChar.image
-                      ? <ImageWithFallback uri={selectedChar.image} style={[s.panelImgInner, !selectedChar.owned && { opacity: 0.5 }]} />
+                  <LinearGradient colors={selectedItem.bg} style={s.panelImg}>
+                    {selectedItem.imageUrl
+                      ? <ImageWithFallback uri={selectedItem.imageUrl} style={[s.panelImgInner, !selectedItem.owned && { opacity: 0.5 }]} />
                       : <View style={{ flex: 1 }} />}
                   </LinearGradient>
                   <View style={s.panelText}>
-                    <Text style={s.panelName} numberOfLines={1}>{selectedChar.name}</Text>
-                    <Text style={s.panelDesc} numberOfLines={1}>{selectedChar.desc}{selectedChar.owned ? ' · 보유 중' : ''}</Text>
+                    <Text style={s.panelName} numberOfLines={1}>{selectedItem.name}</Text>
+                    <Text style={s.panelDesc} numberOfLines={1}>
+                      {selectedItem.effect ?? selectedItem.description ?? ''}
+                    </Text>
                   </View>
-                  {!selectedChar.owned && (
+                  {!selectedItem.owned && (
                     <View style={s.panelCostBadge}>
                       <CoinDot size={11} />
-                      <Text style={s.panelCostTxt}>{selectedChar.cost.toLocaleString()}</Text>
+                      <Text style={s.panelCostTxt}>{selectedItem.priceCurrency.toLocaleString()}</Text>
                     </View>
                   )}
                 </View>
                 <TouchableOpacity
-                  onPress={selectedChar.owned ? handleEquip : handleBuy}
-                  disabled={(!canBuy && !selectedChar.owned) || (selectedChar.owned && selectedChar.id === equipped)}
+                  onPress={() => selectedItem.owned ? handleEquip(selectedItem) : handlePurchase(selectedItem)}
+                  disabled={actionLoading || selectedItem.equipped || (!selectedItem.owned && (!canBuySelected || gold < selectedItem.priceCurrency))}
                   activeOpacity={0.85}
                   style={s.actionBtnWrap}
                 >
-                  {(selectedChar.owned && selectedChar.id !== equipped) || canBuy ? (
+                  {actionLoading ? (
+                    <View style={[s.actionBtn, s.actionBtnGray]}>
+                      <ActivityIndicator color="#9ca3af" size="small" />
+                    </View>
+                  ) : (selectedItem.owned && !selectedItem.equipped) || (canBuySelected && gold >= selectedItem.priceCurrency) ? (
                     <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.actionBtn}>
-                      <Text style={s.actionBtnTxt}>{btnLabel}</Text>
+                      <Text style={s.actionBtnTxt}>{selectedButtonLabel()}</Text>
                     </LinearGradient>
                   ) : (
-                    <View style={[s.actionBtn, selectedChar.owned ? s.actionBtnGray : s.actionBtnRed]}>
-                      <Text style={[s.actionBtnTxt, selectedChar.owned ? s.actionBtnTxtGray : s.actionBtnTxtRed]}>{btnLabel}</Text>
+                    <View style={[s.actionBtn, selectedItem.owned ? s.actionBtnGray : s.actionBtnRed]}>
+                      <Text style={[s.actionBtnTxt, selectedItem.owned ? s.actionBtnTxtGray : s.actionBtnTxtRed]}>{selectedButtonLabel()}</Text>
                     </View>
                   )}
                 </TouchableOpacity>
               </View>
             )}
           </>
-        )}
-
-        {/* ── 이용권 탭 ── */}
-        {category === 'pass' && (
+        ) : (
           <ScrollView style={s.passScroll} contentContainerStyle={s.passContent} showsVerticalScrollIndicator={false}>
-            <Text style={s.passSectionLabel}>배틀 · 기록 보호 아이템</Text>
-            {PASSES.map(pass => {
-              const canAfford = gold >= pass.cost;
-              const PassIcon = pass.Icon;
+            <Text style={s.passSectionLabel}>Battle and utility items</Text>
+            {passes.map(item => {
+              const canAfford = gold >= item.priceCurrency;
               return (
-                <View key={pass.id} style={s.passCard}>
-                  <LinearGradient colors={pass.colors} style={s.passIconWrap}>
-                    <PassIcon size={20} color={pass.iconColor} strokeWidth={2.5} />
+                <View key={item.id} style={s.passCard}>
+                  <LinearGradient colors={item.bg} style={s.passIconWrap}>
+                    <PassIcon item={item} />
                   </LinearGradient>
                   <View style={s.passInfo}>
-                    <Text style={s.passName}>{pass.name}</Text>
-                    <Text style={s.passDesc}>{pass.desc}</Text>
+                    <Text style={s.passName}>{item.name}</Text>
+                    <Text style={s.passDesc}>{item.description ?? ''}</Text>
                     <View style={s.passEffectBadge}>
-                      <Text style={s.passEffectTxt}>{pass.effect}</Text>
+                      <Text style={s.passEffectTxt}>{item.effect ?? `Owned ${item.ownedQuantity}`}</Text>
                     </View>
                   </View>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     style={s.passBuyBtn}
-                    onPress={() => handleBuyPass(pass)}
+                    disabled={actionLoading || !item.purchasable || !canAfford}
+                    onPress={() => handlePurchase(item)}
                   >
-                    {canAfford ? (
+                    {item.purchasable && canAfford ? (
                       <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.passBuyGrad}>
                         <CoinDot size={10} />
-                        <Text style={s.passBuyTxt}>{pass.cost.toLocaleString()}</Text>
+                        <Text style={s.passBuyTxt}>{item.priceCurrency.toLocaleString()}</Text>
                       </LinearGradient>
                     ) : (
                       <View style={s.passBuyDisabled}>
                         <CoinDot size={10} />
-                        <Text style={s.passBuyTxtDisabled}>{pass.cost.toLocaleString()}</Text>
+                        <Text style={s.passBuyTxtDisabled}>{item.priceCurrency.toLocaleString()}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -385,7 +410,6 @@ export function ShopScreen({ navigation }: Props) {
           </ScrollView>
         )}
 
-        {/* 토스트 */}
         {toast && (
           <Animated.View style={[s.toast, { opacity: toastOpacity }]}>
             <Text style={s.toastTxt}>{toast}</Text>
@@ -398,24 +422,19 @@ export function ShopScreen({ navigation }: Props) {
 
 const s = StyleSheet.create({
   safe: { flex: 1 },
-
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   backBtn: { width: 36, height: 36, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
   headerCenter: { alignItems: 'center' },
   headerSub: { fontSize: 9, fontWeight: '700', color: '#9ca3af', letterSpacing: 3, textTransform: 'uppercase' },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#111827', letterSpacing: -0.3 },
+  headerTitle: { fontSize: 16, fontWeight: '900', color: '#111827' },
   goldBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', paddingHorizontal: 12, paddingVertical: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
   goldTxt: { fontSize: 12, fontWeight: '900', color: '#d97706' },
-
-  /* 카테고리 탭 */
   categoryWrap: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, backgroundColor: '#f3f4f6', borderRadius: 14, padding: 4, gap: 4 },
   categoryTab: { flex: 1, borderRadius: 10, overflow: 'hidden' },
-  categoryTabActive: {},
   categoryTabGrad: { paddingVertical: 8, alignItems: 'center' },
   categoryTabTxt: { fontSize: 13, fontWeight: '900', color: '#9ca3af', textAlign: 'center', paddingVertical: 8 },
   categoryTabTxtActive: { fontSize: 13, fontWeight: '900', color: '#fff' },
-
-  /* 캐릭터 필터 */
   filterScroll: { flexGrow: 0 },
   filterContent: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
   filterBtnWrap: { flexShrink: 0 },
@@ -423,15 +442,11 @@ const s = StyleSheet.create({
   filterActiveTxt: { fontSize: 11, fontWeight: '900', color: '#fff' },
   filterInactive: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99, backgroundColor: '#fff', borderWidth: 2, borderColor: '#e5e7eb' },
   filterInactiveTxt: { fontSize: 11, fontWeight: '900', color: '#6b7280' },
-
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  emptyEmoji: { fontSize: 32 },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
   emptyTxt: { fontSize: 13, fontWeight: '700', color: '#d1d5db' },
-
   grid: { flex: 1 },
   gridContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   gridItem: { flex: 1 / 3, padding: 4 },
-
   charCard: { borderRadius: 16, overflow: 'hidden', backgroundColor: '#fff' },
   charCardSel: { shadowColor: '#ec4899', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 6, borderWidth: 2, borderColor: '#f9a8d4' },
   charCardNormal: { borderWidth: 1, borderColor: '#f3f4f6' },
@@ -440,8 +455,8 @@ const s = StyleSheet.create({
   charImgPlaceholder: { width: '100%', height: '100%' },
   lockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.08)' },
   lockCircle: { width: 24, height: 24, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  checkBadge: { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  checkBadgeTxt: { color: '#fff', fontWeight: '900', fontSize: 8 },
+  checkBadge: { position: 'absolute', top: 6, right: 6, minWidth: 20, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff', paddingHorizontal: 4 },
+  checkBadgeTxt: { color: '#fff', fontWeight: '900', fontSize: 7 },
   specialBadge: { position: 'absolute', top: 6, left: 6, borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 },
   specialBadgeTxt: { color: '#fff', fontWeight: '900', fontSize: 7 },
   charTextArea: { paddingHorizontal: 8, paddingVertical: 6, gap: 3 },
@@ -452,7 +467,6 @@ const s = StyleSheet.create({
   usingBadgeTxt: { fontSize: 9, fontWeight: '900', color: '#059669' },
   ownedBadge: { backgroundColor: '#f5f3ff', borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 },
   ownedBadgeTxt: { fontSize: 9, fontWeight: '900', color: '#7c3aed' },
-
   bottomPanel: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#f3f4f6', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 12 },
   panelInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   panelImg: { width: 48, height: 48, borderRadius: 16, overflow: 'hidden', borderWidth: 2, borderColor: '#fbcfe8', flexShrink: 0 },
@@ -469,8 +483,6 @@ const s = StyleSheet.create({
   actionBtnTxt: { fontSize: 13, fontWeight: '900', color: '#fff' },
   actionBtnTxtGray: { color: '#9ca3af' },
   actionBtnTxtRed: { color: '#f87171' },
-
-  /* 이용권 탭 */
   passScroll: { flex: 1 },
   passContent: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
   passSectionLabel: { fontSize: 11, fontWeight: '700', color: '#9ca3af', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
@@ -486,7 +498,6 @@ const s = StyleSheet.create({
   passBuyTxt: { fontSize: 12, fontWeight: '900', color: '#fff' },
   passBuyDisabled: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f3f4f6', borderRadius: 12 },
   passBuyTxtDisabled: { fontSize: 12, fontWeight: '900', color: '#9ca3af' },
-
   toast: { position: 'absolute', bottom: 100, alignSelf: 'center', backgroundColor: 'rgba(17,24,39,0.85)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99 },
   toastTxt: { color: '#fff', fontSize: 11, fontWeight: '900' },
 });

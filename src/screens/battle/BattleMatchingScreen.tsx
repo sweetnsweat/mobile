@@ -1,15 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, Animated, StyleSheet, StatusBar, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
+import { durationToBattleMode, matchBattle } from '../../services/BattleService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleMatching'>;
-
-const MY_INFO = { name: '이수연', image: 'https://i.imgur.com/v0njcuh.png' };
-const MOCK_OPPONENT = { name: '민수 선배', image: 'https://i.imgur.com/ub32dOr.png' };
 
 export function BattleMatchingScreen({ navigation, route }: Props) {
   const { duration } = route.params;
@@ -23,7 +21,7 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
   const isDay = duration === '1d';
   const accentColor = isDay ? '#ec4899' : '#0ea5e9';
   const gradientColors: [string, string] = isDay ? ['#ec4899', '#f472b6'] : ['#0ea5e9', '#38bdf8'];
-  const durationLabel = isDay ? '⚡ 하루 배틀' : '🗓️ 주간 배틀';
+  const durationLabel = isDay ? '하루 배틀' : '주간 배틀';
 
   useEffect(() => {
     function makeRipple(scale: Animated.Value, opacity: Animated.Value, delay: number) {
@@ -49,17 +47,33 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('Battle', {
-        myName: MY_INFO.name,
-        myImage: MY_INFO.image,
-        opponentName: MOCK_OPPONENT.name,
-        opponentImage: MOCK_OPPONENT.image,
-        duration,
-      });
-    }, 2800);
-    return () => clearTimeout(timer);
-  }, []);
+    let cancelled = false;
+
+    async function startMatching() {
+      try {
+        const battle = await matchBattle(durationToBattleMode(duration));
+        if (!cancelled) {
+          navigation.replace('Battle', {
+            battleId: battle.battleId,
+            duration,
+          });
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        const code = e?.response?.data?.code;
+        Alert.alert(
+          '배틀',
+          code === 'BATTLE_OPPONENT_NOT_FOUND'
+            ? '지금은 매칭 가능한 상대가 없어요. 잠시 뒤 다시 시도해주세요.'
+            : e?.response?.data?.detail ?? e?.message ?? '배틀 매칭에 실패했습니다.',
+          [{ text: '확인', onPress: () => navigation.goBack() }],
+        );
+      }
+    }
+
+    startMatching();
+    return () => { cancelled = true; };
+  }, [duration, navigation]);
 
   return (
     <ScreenBackground>
@@ -73,7 +87,7 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
             <Animated.View style={[s.ring, { transform: [{ scale: scale1 }], opacity: op1, borderColor: accentColor }]} />
             <View style={[s.centerCircleOuter, { shadowColor: accentColor }]}>
               <LinearGradient colors={gradientColors} style={s.centerCircle}>
-                <Text style={s.centerEmoji}>⚔️</Text>
+                <Text style={s.centerEmoji}>VS</Text>
               </LinearGradient>
             </View>
           </View>
@@ -85,7 +99,7 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
 
           <View style={s.textWrap}>
             <Text style={s.mainText}>상대를 찾고 있어요...</Text>
-            <Text style={s.subText}>실력이 비슷한 상대를 연결 중이에요 😊</Text>
+            <Text style={s.subText}>비슷한 점수의 상대와 연결 중입니다.</Text>
           </View>
 
           {/* 도트 로더 */}

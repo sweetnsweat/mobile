@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, API_ORIGIN } from '../config/api';
 import { getStoredAuth } from './AuthService';
 
 const BASE_URL = `${API_BASE_URL}/users`;
@@ -23,8 +23,14 @@ export interface UserProfileResponse {
   loginId: string;
   nickname: string;
   email?: string | null;
+  level?: number | null;
+  totalExp?: number | null;
+  currentLevelExp?: number | null;
+  nextLevelRequiredExp?: number | null;
+  nextLevelRemainingExp?: number | null;
+  balanceCurrency?: number | null;
   gender?: string;
-  birthDate?: string;
+  birthDate?: string | number[] | null;
   heightCm?: number;
   weightKg?: number;
   experienceLevel?: string;
@@ -52,6 +58,12 @@ function authHeader(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth?.accessToken) throw new Error('로그인이 필요합니다.');
   return { Authorization: `Bearer ${auth.accessToken}` };
+}
+
+export function resolveProfileImageUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 export async function saveOnboardingProfile(req: OnboardingProfileRequest): Promise<UserProfileResponse> {

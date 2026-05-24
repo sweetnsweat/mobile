@@ -31,13 +31,14 @@ import { ActivityRankingDetailScreen } from '../screens/ActivityRankingDetailScr
 import { StoryChatListScreen } from '../screens/story/StoryChatListScreen';
 import { AccountRecoveryScreen } from '../screens/auth/AccountRecoveryScreen';
 import { EditProfileScreen } from '../screens/mypage/EditProfileScreen';
+import { flushPendingNavigation, navigationRef } from './NavigationService';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator() {
   return (
     <SafeAreaProvider style={s.root}>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef} onReady={flushPendingNavigation}>
         <Stack.Navigator
           initialRouteName="EmojiMapHero"
           screenOptions={{ headerShown: false, animation: 'slide_from_right' }}

@@ -31,8 +31,8 @@ export type RootStackParamList = {
   CharacterSelect: undefined;
   BattleLobby: undefined;
   BattleMatching: { duration: '1d' | '7d' };
-  Battle: { myName: string; myImage: string; opponentName: string; opponentImage: string; duration: '1d' | '7d' };
-  BattleResult: { myName: string; myImage: string; opponentName: string; opponentImage: string; won: boolean; duration: '1d' | '7d' };
+  Battle: { battleId: number; duration?: '1d' | '7d' };
+  BattleResult: { battleId: number; duration?: '1d' | '7d' };
   Mypage: undefined;
   Shop: undefined;
   WorldRanking: undefined;

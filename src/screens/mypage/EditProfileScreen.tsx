@@ -30,6 +30,7 @@ function WheelPicker({ items, initialIndex, onChange }: WheelPickerProps) {
 
   useEffect(() => {
     setActiveIdx(initialIndex);
+    scrollRef.current?.scrollTo({ y: initialIndex * ITEM_H, animated: false });
     const t = setTimeout(() => {
       scrollRef.current?.scrollTo({ y: initialIndex * ITEM_H, animated: false });
     }, 80);
@@ -89,10 +90,6 @@ const GENDER_LABEL: Record<string, string> = {
   FEMALE: '여성',
   OTHER: '기타',
 };
-const LEVEL_LABEL: Record<string, string> = {
-  BEGINNER: '초급', INTERMEDIATE: '중급', ADVANCED: '고급',
-};
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.infoRow}>
@@ -127,8 +124,24 @@ function isValidPastBirthDate(value: string): boolean {
   return date.getTime() < today.getTime();
 }
 
-function getBirthDateIndices(value?: string | null): { year: number; month: number; day: number; hasValue: boolean } {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+function normalizeBirthDate(value?: string | number[] | null): string {
+  if (!value) return '';
+
+  if (Array.isArray(value) && value.length >= 3) {
+    const [year, month, day] = value;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  if (typeof value !== 'string') return '';
+
+  const trimmed = value.trim();
+  const matched = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return matched ? `${matched[1]}-${matched[2]}-${matched[3]}` : '';
+}
+
+function getBirthDateIndices(value?: string | number[] | null): { year: number; month: number; day: number; hasValue: boolean } {
+  const normalized = normalizeBirthDate(value);
+  if (!normalized || !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
     return {
       year: DEFAULT_YEAR_IDX,
       month: DEFAULT_MONTH_IDX,
@@ -136,11 +149,24 @@ function getBirthDateIndices(value?: string | null): { year: number; month: numb
       hasValue: false,
     };
   }
-  const [year, month, day] = value.split('-');
+  const [year, month, day] = normalized.split('-');
+  const yearIndex = YEARS.indexOf(year);
+  const monthIndex = MONTHS.indexOf(month);
+  const dayIndex = DAYS.indexOf(day);
+
+  if (yearIndex < 0 || monthIndex < 0 || dayIndex < 0) {
+    return {
+      year: DEFAULT_YEAR_IDX,
+      month: DEFAULT_MONTH_IDX,
+      day: DEFAULT_DAY_IDX,
+      hasValue: false,
+    };
+  }
+
   return {
-    year: Math.max(0, YEARS.indexOf(year)),
-    month: Math.max(0, MONTHS.indexOf(month)),
-    day: Math.max(0, DAYS.indexOf(day)),
+    year: yearIndex,
+    month: monthIndex,
+    day: dayIndex,
     hasValue: true,
   };
 }
@@ -169,9 +195,12 @@ export function EditProfileScreen({ navigation }: Props) {
   const originalNickname = useRef('');
 
   useEffect(() => {
+    console.log('[EditProfile] screen opened');
     setLoadingProfile(true);
+    console.log('[EditProfile] getMyProfile request');
     getMyProfile()
       .then(p => {
+        console.log('[EditProfile] getMyProfile response', JSON.stringify(p, null, 2));
         setProfile(p);
         setNickname(p.nickname);
         setEmail(p.email ?? '');
@@ -186,6 +215,10 @@ export function EditProfileScreen({ navigation }: Props) {
         originalNickname.current = p.nickname;
         // 기존 닉네임은 확인 불필요
         setNicknameStatus('same');
+      })
+      .catch(e => {
+        console.log('[EditProfile] getMyProfile failed', e?.response?.data ?? e?.message ?? e);
+        throw e;
       })
       .catch(() => setError('프로필을 불러오지 못했습니다.'))
       .finally(() => setLoadingProfile(false));
@@ -243,15 +276,16 @@ export function EditProfileScreen({ navigation }: Props) {
 
     setError('');
     setSaving(true);
+    const payload = {
+      nickname: trimmedNick,
+      email: trimmedEmail || undefined,
+      gender: gender || undefined,
+      birthDate: selectedBirthDate || undefined,
+      heightCm: parsedHeight,
+      weightKg: parsedWeight,
+    };
     try {
-      const updated = await updateUserInfo({
-        nickname: trimmedNick,
-        email: trimmedEmail || undefined,
-        gender: gender || undefined,
-        birthDate: selectedBirthDate || undefined,
-        heightCm: parsedHeight,
-        weightKg: parsedWeight,
-      });
+      const updated = await updateUserInfo(payload);
       setProfile(updated);
       originalNickname.current = trimmedNick;
       navigation.goBack();
@@ -305,7 +339,6 @@ export function EditProfileScreen({ navigation }: Props) {
                 <Text style={s.cardTitle}>기본 정보</Text>
                 <View style={s.infoList}>
                   <InfoRow label="아이디" value={profile?.loginId ?? '-'} />
-                  <InfoRow label="운동 수준" value={LEVEL_LABEL[profile?.experienceLevel ?? ''] ?? '-'} />
                 </View>
               </View>
 

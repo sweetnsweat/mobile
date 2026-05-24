@@ -14,6 +14,35 @@ export interface QuestExercise {
   targetDurationSec: number | null;
 }
 
+export interface QuestVerificationWindow {
+  startTime: string;
+  endTime: string | null;
+}
+
+export interface HealthMetricSampleRequest {
+  type?: string;
+  value: number;
+  unit?: string;
+  startTime: string;
+  endTime?: string;
+  source: 'health_connect' | string;
+  dataOrigin?: string;
+  rawRecordType?: string;
+}
+
+export interface CompleteQuestRequest {
+  progressValue?: number;
+  proof?: Record<string, unknown>;
+  healthSamples?: HealthMetricSampleRequest[];
+}
+
+export type QuestCompletionType = 'VERIFIED' | 'MANUAL' | string;
+export type QuestVerificationStatus =
+  | 'VERIFIED'
+  | 'NOT_PROVIDED'
+  | 'INSUFFICIENT_DATA'
+  | string;
+
 export interface QuestResponse {
   id: number;
   questDate: string;
@@ -38,6 +67,10 @@ export interface QuestResponse {
   rewardExp: number;
   rewardGold: number | null;
   completedAt: string | null;
+  completionType?: QuestCompletionType | null;
+  verificationStatus?: QuestVerificationStatus | null;
+  battleEligible?: boolean | null;
+  verificationWindow?: QuestVerificationWindow | null;
   exercises: QuestExercise[];
 }
 
@@ -55,10 +88,13 @@ export async function getTodayQuest(): Promise<QuestResponse> {
   return res.data.data;
 }
 
-export async function completeQuest(questId: number): Promise<QuestResponse> {
+export async function completeQuest(
+  questId: number,
+  request: CompleteQuestRequest = {},
+): Promise<QuestResponse> {
   const res = await axios.patch<{ data: QuestResponse }>(
     `${BASE_URL}/quests/${questId}/complete`,
-    {},
+    request,
     { headers: authHeader() },
   );
   return res.data.data;

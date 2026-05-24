@@ -3,6 +3,7 @@ import messaging from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { API_BASE_URL } from '../config/api';
 import { getStoredAuth } from './AuthService';
+import { navigationRef, runWhenNavigationReady } from '../navigation/NavigationService';
 
 interface PushTokenResponse {
   id: number;
@@ -14,6 +15,21 @@ interface PushTokenResponse {
 
 let registeredPushTokenId: number | null = null;
 
+export type PushNotificationType =
+  | 'BATTLE_MATCHED'
+  | 'BATTLE_RESULT_READY'
+  | 'WEEKLY_STATS_READY';
+
+export type PushNotificationData = {
+  type?: PushNotificationType | string;
+  route?: string;
+  battleId?: string;
+  battleMode?: 'DAILY' | 'WEEKLY' | string;
+  result?: 'WIN' | 'LOSS' | 'DRAW' | 'PENDING' | string;
+  weekStartDate?: string;
+  weekEndDate?: string;
+};
+
 function authHeader(accessToken: string): Record<string, string> {
   return { Authorization: `Bearer ${accessToken}` };
 }
@@ -21,6 +37,19 @@ function authHeader(accessToken: string): Record<string, string> {
 function getDeviceId(): string {
   const auth = getStoredAuth();
   return auth?.user?.id ? `android-user-${auth.user.id}` : 'android-device';
+}
+
+function logFcmRequestError(label: string, error: any): void {
+  const status = error?.response?.status;
+  const url = error?.config?.url;
+  const responseData = error?.response?.data;
+
+  console.warn(label, {
+    status,
+    url,
+    responseData,
+    message: error?.message,
+  });
 }
 
 export async function requestAndroidNotificationPermission(): Promise<boolean> {
@@ -70,10 +99,7 @@ export async function registerFcmTokenForCurrentUser(tokenOverride?: string): Pr
     registeredPushTokenId = response.data.data.id;
     return true;
   } catch (error: any) {
-    console.warn(
-      'FCM token registration skipped:',
-      error?.response?.data?.message ?? error?.message ?? error,
-    );
+    logFcmRequestError('FCM token registration skipped:', error);
     return false;
   }
 }
@@ -90,10 +116,7 @@ export async function deactivateRegisteredFcmToken(accessToken?: string): Promis
       { headers: authHeader(accessToken) },
     );
   } catch (error: any) {
-    console.warn(
-      'FCM token deactivation skipped:',
-      error?.response?.data?.message ?? error?.message ?? error,
-    );
+    logFcmRequestError('FCM token deactivation skipped:', error);
   }
 }
 
@@ -103,4 +126,68 @@ export function subscribeFcmTokenRefresh(): () => void {
   return messaging().onTokenRefresh(token => {
     registerFcmTokenForCurrentUser(token);
   });
+}
+
+function battleDuration(battleMode?: string): '1d' | '7d' {
+  return battleMode === 'WEEKLY' ? '7d' : '1d';
+}
+
+function parseBattleId(value?: string): number | null {
+  if (!value) return null;
+  const battleId = Number(value);
+  return Number.isFinite(battleId) ? battleId : null;
+}
+
+export function handlePushNotificationNavigation(data?: PushNotificationData): boolean {
+  if (!data?.type) return false;
+
+  const navigate = () => {
+    switch (data.type) {
+      case 'BATTLE_MATCHED': {
+        const battleId = parseBattleId(data.battleId);
+        if (battleId == null) return;
+        navigationRef.navigate('Battle', {
+          battleId,
+          duration: battleDuration(data.battleMode),
+        });
+        break;
+      }
+      case 'BATTLE_RESULT_READY': {
+        const battleId = parseBattleId(data.battleId);
+        if (battleId == null) return;
+        navigationRef.navigate('BattleResult', {
+          battleId,
+          duration: battleDuration(data.battleMode),
+        });
+        break;
+      }
+      case 'WEEKLY_STATS_READY':
+        navigationRef.navigate('Statistics');
+        break;
+      default:
+        break;
+    }
+  };
+
+  runWhenNavigationReady(navigate);
+  return true;
+}
+
+export function subscribeFcmNotificationNavigationHandlers(): () => void {
+  if (Platform.OS !== 'android') return () => {};
+
+  const unsubscribeOpened = messaging().onNotificationOpenedApp(remoteMessage => {
+    handlePushNotificationNavigation(remoteMessage.data as PushNotificationData | undefined);
+  });
+
+  messaging()
+    .getInitialNotification()
+    .then(remoteMessage => {
+      handlePushNotificationNavigation(remoteMessage?.data as PushNotificationData | undefined);
+    })
+    .catch(error => {
+      console.warn('FCM initial notification handling skipped:', error?.message ?? error);
+    });
+
+  return unsubscribeOpened;
 }

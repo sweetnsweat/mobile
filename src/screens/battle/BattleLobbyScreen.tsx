@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swords, Zap, Calendar, Trophy, TrendingUp, Shield } from 'lucide-react-native';
@@ -7,15 +7,48 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { BottomNav } from '../../components/BottomNav';
+import { battleModeToDuration, BattleSummary, durationToBattleMode, getBattleSummary } from '../../services/BattleService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleLobby'>;
 type Duration = '1d' | '7d';
 
-// TODO: API 연결 후 실제 데이터로 교체
-const MOCK_STATS = { wins: 0, losses: 0, winRate: 0 };
-
 export function BattleLobbyScreen({ navigation }: Props) {
   const [duration, setDuration] = useState<Duration>('1d');
+  const [summary, setSummary] = useState<BattleSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function loadSummary() {
+    setLoading(true);
+    try {
+      setSummary(await getBattleSummary());
+    } catch (e: any) {
+      Alert.alert('배틀', e?.response?.data?.detail ?? e?.message ?? '배틀 요약을 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', loadSummary);
+    return unsubscribe;
+  }, [navigation]);
+
+  const selectedBattle =
+    durationToBattleMode(duration) === 'DAILY'
+      ? summary?.currentDailyBattle
+      : summary?.currentWeeklyBattle;
+
+  function handleBattlePress() {
+    if (selectedBattle) {
+      navigation.navigate('Battle', {
+        battleId: selectedBattle.battleId,
+        duration: battleModeToDuration(selectedBattle.mode),
+      });
+      return;
+    }
+
+    navigation.navigate('BattleMatching', { duration });
+  }
 
   return (
     <ScreenBackground>
@@ -25,7 +58,7 @@ export function BattleLobbyScreen({ navigation }: Props) {
         <View style={s.topBar}>
           <View>
             <Text style={s.topBarSub}>BATTLE</Text>
-            <Text style={s.topBarTitle}>배틀 ⚔️</Text>
+            <Text style={s.topBarTitle}>배틀</Text>
           </View>
           <View style={s.topBarIcon}>
             <Swords size={18} color="#ec4899" strokeWidth={2.5} />
@@ -47,8 +80,8 @@ export function BattleLobbyScreen({ navigation }: Props) {
               </View>
               <View style={s.rankInfo}>
                 <Text style={s.rankLabel}>나의 배틀 랭크</Text>
-                <Text style={s.rankName}>Unranked</Text>
-                <Text style={s.rankSub}>첫 배틀을 시작해 보세요! 🔥</Text>
+                <Text style={s.rankName}>{summary?.rankName ?? 'Unranked'}</Text>
+                <Text style={s.rankSub}>첫 배틀을 시작해보세요.</Text>
               </View>
             </View>
 
@@ -57,19 +90,19 @@ export function BattleLobbyScreen({ navigation }: Props) {
             <View style={s.statsRow}>
               <View style={s.statChip}>
                 <Trophy size={13} color="#facc15" strokeWidth={2.5} />
-                <Text style={s.statNum}>{MOCK_STATS.wins}</Text>
+                <Text style={s.statNum}>{summary?.wins ?? 0}</Text>
                 <Text style={s.statLabel}>승</Text>
               </View>
               <View style={s.statDivider} />
               <View style={s.statChip}>
                 <Zap size={13} color="#9ca3af" strokeWidth={2.5} />
-                <Text style={s.statNum}>{MOCK_STATS.losses}</Text>
+                <Text style={s.statNum}>{summary?.losses ?? 0}</Text>
                 <Text style={s.statLabel}>패</Text>
               </View>
               <View style={s.statDivider} />
               <View style={s.statChip}>
                 <TrendingUp size={13} color="#34d399" strokeWidth={2.5} />
-                <Text style={s.statNum}>{MOCK_STATS.winRate}%</Text>
+                <Text style={s.statNum}>{summary?.winRate ?? 0}%</Text>
                 <Text style={s.statLabel}>승률</Text>
               </View>
             </View>
@@ -93,7 +126,7 @@ export function BattleLobbyScreen({ navigation }: Props) {
               <Text style={s.durationDesc}>오늘 하루 기록으로 승부</Text>
               {duration === '1d' && (
                 <View style={s.checkBadge}>
-                  <Text style={s.checkBadgeTxt}>✓</Text>
+                  <Text style={s.checkBadgeTxt}>선택</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -113,7 +146,7 @@ export function BattleLobbyScreen({ navigation }: Props) {
               <Text style={s.durationDesc}>7일 누적 기록으로 승부</Text>
               {duration === '7d' && (
                 <View style={[s.checkBadge, { backgroundColor: '#e0f2fe', borderColor: '#7dd3fc' }]}>
-                  <Text style={[s.checkBadgeTxt, { color: '#0284c7' }]}>✓</Text>
+                  <Text style={[s.checkBadgeTxt, { color: '#0284c7' }]}>선택</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -123,7 +156,8 @@ export function BattleLobbyScreen({ navigation }: Props) {
           <TouchableOpacity
             activeOpacity={0.85}
             style={s.ctaWrap}
-            onPress={() => navigation.navigate('BattleMatching', { duration })}
+            onPress={handleBattlePress}
+            disabled={loading}
           >
             <LinearGradient
               colors={duration === '1d' ? ['#ec4899', '#f472b6'] : ['#0ea5e9', '#38bdf8']}
@@ -131,7 +165,7 @@ export function BattleLobbyScreen({ navigation }: Props) {
               style={s.cta}
             >
               <Swords size={18} color="#fff" strokeWidth={2.5} />
-              <Text style={s.ctaTxt}>매칭 시작하기</Text>
+              <Text style={s.ctaTxt}>{selectedBattle ? '이어하기' : '매칭 시작하기'}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>

@@ -21,17 +21,15 @@ import {
   deactivateRegisteredFcmToken,
   registerFcmTokenForCurrentUser,
 } from '../../services/FcmService';
-import { getMyProfile } from '../../services/UserService';
+import { getMyProfile, resolveProfileImageUrl, UserProfileResponse } from '../../services/UserService';
 import { getWeeklyStats, WeeklyStatsResponse } from '../../services/StatsService';
-import { API_ORIGIN } from '../../config/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
 
 const PROFILE = {
   name: '수연', handle: '@suyeon_run',
   avatar: 'https://i.imgur.com/v0njcuh.png',
-  level: 14, title: '불꽃 챌린저',
-  exp: 980, expMax: 1200,
+  title: '불꽃 챌린저',
   followers: 38, following: 22, streak: 7,
 };
 
@@ -43,12 +41,6 @@ const BADGES = [
   { emoji: '🌟', label: 'TOP 3',   colors: ['#c084fc','#f472b6'] as [string,string] },
   { emoji: '🎯', label: '목표달성', colors: ['#34d399','#2dd4bf'] as [string,string] },
 ];
-
-function resolveProfileImageUrl(url?: string | null): string {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
-}
 
 type SettingIcon = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
@@ -63,10 +55,18 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
 
 export function MypageScreen({ navigation }: Props) {
   const [toggles, setToggles] = useState<Record<string, boolean>>({ bell: true, dark: false });
+  const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [nickname, setNickname] = useState('');
   const [profileImageUrl, setProfileImageUrl] = useState('');
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
-  const expPct = Math.round((PROFILE.exp / PROFILE.expMax) * 100);
+  const level = profile?.level ?? 1;
+  const currentLevelExp = profile?.currentLevelExp ?? 0;
+  const nextLevelRequiredExp = Math.max(1, profile?.nextLevelRequiredExp ?? 1);
+  const nextLevelRemainingExp = Math.max(
+    0,
+    profile?.nextLevelRemainingExp ?? nextLevelRequiredExp - currentLevelExp,
+  );
+  const expPct = Math.max(0, Math.min(100, Math.round((currentLevelExp / nextLevelRequiredExp) * 100)));
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -74,6 +74,7 @@ export function MypageScreen({ navigation }: Props) {
     getMyProfile()
       .then(p => {
         if (!isActive) return;
+        setProfile(p);
         setNickname(p.nickname ?? '');
         setProfileImageUrl(resolveProfileImageUrl(p.profileImageUrl));
       })
@@ -169,14 +170,14 @@ export function MypageScreen({ navigation }: Props) {
                   <LinearGradient colors={['#facc15','#fb923c']} style={s.expLvBadge}>
                     <Star size={12} color="#fff" strokeWidth={2.5} />
                   </LinearGradient>
-                  <Text style={s.expLvTxt}>Lv.{PROFILE.level}</Text>
+                  <Text style={s.expLvTxt}>Lv.{level}</Text>
                 </View>
-                <Text style={s.expNumTxt}>{PROFILE.exp.toLocaleString()} / {PROFILE.expMax.toLocaleString()} EXP</Text>
+                <Text style={s.expNumTxt}>{currentLevelExp.toLocaleString()} / {nextLevelRequiredExp.toLocaleString()} EXP</Text>
               </View>
               <View style={s.expBarBg}>
                 <LinearGradient colors={['#f472b6','#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[s.expBarFill, { width: `${expPct}%` as any }]} />
               </View>
-              <Text style={s.expNextTxt}>다음 레벨까지 {(PROFILE.expMax - PROFILE.exp).toLocaleString()} EXP 남았어요!</Text>
+              <Text style={s.expNextTxt}>다음 레벨까지 {nextLevelRemainingExp.toLocaleString()} EXP 남았어요!</Text>
             </View>
           </View>
 
