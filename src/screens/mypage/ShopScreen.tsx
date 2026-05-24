@@ -36,6 +36,7 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'locked', label: 'Locked' },
   { key: 'special', label: 'Special' },
 ];
+const DEFAULT_PASS_PRESENTATION = PASS_PRESENTATION[0];
 
 function CoinDot({ size = 13 }: { size?: number }) {
   return (
@@ -278,6 +279,23 @@ export function ShopScreen({ navigation }: Props) {
             </TouchableOpacity>
           ))}
         </View>
+
+        {loading && (
+          <View style={s.emptyWrap}>
+            <ActivityIndicator color="#ec4899" />
+            <Text style={s.emptyTxt}>상점 정보를 불러오는 중이에요</Text>
+          </View>
+        )}
+
+        {!loading && error && (
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyEmoji}>!</Text>
+            <Text style={s.emptyTxt}>{error}</Text>
+            <TouchableOpacity activeOpacity={0.85} onPress={loadShop} style={s.retryBtn}>
+              <Text style={s.retryTxt}>다시 불러오기</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {loading ? (
           <View style={s.loadingWrap}>
