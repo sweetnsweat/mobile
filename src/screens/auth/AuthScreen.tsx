@@ -14,7 +14,7 @@ import { ScreenBackground } from '../../components/ScreenBackground';
 import { useBounceAnimation } from '../../hooks/useBounceAnimation';
 import { login, signup, checkNickname } from '../../services/AuthService';
 import { registerFcmTokenForCurrentUser } from '../../services/FcmService';
-import { readSamsungHealthSyncedData } from '../../services/HealthConnectService';
+import { syncHealthDataWithServer } from '../../services/HealthConnectService';
 import { getMyProfile } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
@@ -53,48 +53,13 @@ export function AuthScreen({ navigation }: Props) {
     if (Platform.OS !== 'android') return;
 
     try {
-      const endTime = new Date();
-      const startTime = new Date(endTime);
-      startTime.setDate(startTime.getDate() - 30);
-
-      const result = await readSamsungHealthSyncedData({
-        startTime,
-        endTime,
-      });
-
-      const totalRecords = result.results.reduce(
-        (sum, item) => sum + item.records.length,
-        0,
-      );
-      const recordsByType = result.results.map(item => ({
-        recordType: item.recordType,
-        count: item.records.length,
-        pageToken: item.pageToken,
-        error: item.error,
-        records: item.records,
-      }));
-
-      console.log('Health Connect synced after login summary:', {
+      const result = await syncHealthDataWithServer({ force: true });
+      console.log('Health Connect server sync after login:', {
         grantedRecordTypes: result.grantedRecordTypes,
         deniedRecordTypes: result.deniedRecordTypes,
-        totalRecords,
-      });
-      recordsByType.forEach(item => {
-        console.log('Health Connect records by type:', {
-          recordType: item.recordType,
-          count: item.count,
-          pageToken: item.pageToken,
-          error: item.error,
-        });
-
-        item.records.forEach((record, index) => {
-          if (index >= Math.ceil(item.records.length / 2)) return;
-
-          console.log(
-            `Health Connect ${item.recordType} record ${index + 1}/${item.count}:`,
-            JSON.stringify(record),
-          );
-        });
+        sampleCount: result.sampleCount,
+        skipped: result.skipped,
+        reason: result.reason,
       });
     } catch (e) {
       console.warn(

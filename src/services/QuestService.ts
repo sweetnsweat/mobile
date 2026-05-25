@@ -80,11 +80,26 @@ function authHeader(): Record<string, string> {
   return { Authorization: `Bearer ${auth.accessToken}` };
 }
 
+function logQuestRequest(label: string, method: 'GET' | 'PATCH', url: string, body: unknown = null): void {
+  console.log(`[QuestAPI] ${label} request`, {
+    method,
+    url,
+    body: JSON.stringify(body, null, 2),
+  });
+}
+
+function logQuestResponse(label: string, data: unknown): void {
+  console.log(`[QuestAPI] ${label} response`, JSON.stringify(data, null, 2));
+}
+
 export async function getTodayQuest(): Promise<QuestResponse> {
+  const url = `${BASE_URL}/quests/today`;
+  logQuestRequest('today quest', 'GET', url);
   const res = await axios.get<{ data: QuestResponse }>(
-    `${BASE_URL}/quests/today`,
+    url,
     { headers: authHeader() },
   );
+  logQuestResponse('today quest', res.data);
   return res.data.data;
 }
 
@@ -92,10 +107,13 @@ export async function completeQuest(
   questId: number,
   request: CompleteQuestRequest = {},
 ): Promise<QuestResponse> {
+  const url = `${BASE_URL}/quests/${questId}/complete`;
+  logQuestRequest('complete quest', 'PATCH', url, request);
   const res = await axios.patch<{ data: QuestResponse }>(
-    `${BASE_URL}/quests/${questId}/complete`,
+    url,
     request,
     { headers: authHeader() },
   );
+  logQuestResponse('complete quest', res.data);
   return res.data.data;
 }

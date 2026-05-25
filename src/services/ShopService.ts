@@ -58,6 +58,23 @@ export interface EquipItemResponse {
   profileImageUrl: string | null;
 }
 
+export type ShopItemEffectType =
+  | 'EXP_BOOST'
+  | 'QUEST_SKIP'
+  | 'RECORD_SHIELD'
+  | 'WIN_RATE_SHIELD'
+  | 'BATTLE_RETRY'
+  | string;
+
+export interface UseShopItemResponse {
+  item: InventoryItem;
+  effectType: ShopItemEffectType;
+  status: 'ACTIVE' | 'USED' | string;
+  message: string;
+  expiresAt: string | null;
+  quest: Record<string, unknown> | null;
+}
+
 function authHeader(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth?.accessToken) throw new Error('로그인이 필요합니다.');
@@ -90,6 +107,15 @@ export async function purchaseShopItem(
 export async function equipShopItem(itemId: number): Promise<EquipItemResponse> {
   const res = await axios.post<{ data: EquipItemResponse }>(
     `${BASE_URL}/shop/items/${itemId}/equip`,
+    {},
+    { headers: authHeader() },
+  );
+  return res.data.data;
+}
+
+export async function consumeShopItem(itemId: number): Promise<UseShopItemResponse> {
+  const res = await axios.post<{ data: UseShopItemResponse }>(
+    `${BASE_URL}/shop/items/${itemId}/use`,
     {},
     { headers: authHeader() },
   );

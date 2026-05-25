@@ -22,6 +22,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RoutineSetup'>;
 type RoutineSetupView = 'choice' | 'recommendations';
 
 const DIFFICULTY_LABEL: Record<string, string> = {
+  easy: '초급',
+  medium: '중급',
+  hard: '고급',
   beginner: '초급',
   intermediate: '중급',
   advanced: '고급',

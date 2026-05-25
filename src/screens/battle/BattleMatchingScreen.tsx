@@ -6,6 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { durationToBattleMode, matchBattle } from '../../services/BattleService';
+import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleMatching'>;
 
@@ -44,20 +45,31 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
     const l3 = makeRipple(scale3, op3, 920);
     l1.start(); l2.start(); l3.start();
     return () => { l1.stop(); l2.stop(); l3.stop(); };
-  }, []);
+  }, [op1, op2, op3, scale1, scale2, scale3]);
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function startMatching() {
       try {
+        try {
+          await syncHealthDataWithServerIfStale();
+        } catch (e) {
+          console.log('[HealthDataSync] battle matching skipped:', e instanceof Error ? e.message : e);
+        }
         const battle = await matchBattle(durationToBattleMode(duration));
-        if (!cancelled) {
+        if (cancelled) return;
+
+        if (battle.matchStatus === 'MATCHED' && battle.battleId) {
           navigation.replace('Battle', {
             battleId: battle.battleId,
             duration,
           });
+          return;
         }
+
+        retryTimer = setTimeout(startMatching, 3000);
       } catch (e: any) {
         if (cancelled) return;
         const code = e?.response?.data?.code;
@@ -72,7 +84,10 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
     }
 
     startMatching();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [duration, navigation]);
 
   return (

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Menu, Flame, Trophy, Zap, Crown } from 'lucide-react-native';
+import { Flame, Trophy, Zap, Crown } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { ImageWithFallback } from '../components/ImageWithFallback';
@@ -26,6 +26,7 @@ import {
 } from '../services/HomeService';
 import { RoutineDetailModal } from './routine/RoutineDetailModal';
 import { WorldPreviewModal } from './world/WorldPreviewModal';
+import { syncHealthDataWithServerIfStale } from '../services/HealthConnectService';
 
 const { width: W } = Dimensions.get('window');
 
@@ -180,6 +181,9 @@ export function HomeScreen({ navigation }: Props) {
   }, []);
 
   useFocusEffect(useCallback(() => {
+    syncHealthDataWithServerIfStale().catch(e => {
+      console.log('[HealthDataSync] home skipped:', e instanceof Error ? e.message : e);
+    });
     loadHomeData();
     loadTodayRoutine();
   }, []));
@@ -222,16 +226,7 @@ export function HomeScreen({ navigation }: Props) {
     }
   }
 
-  useEffect(() => {
-    const timer = setInterval(goNext, 3000);
-    return () => clearInterval(timer);
-  }, [slide, animating, slides.length]);
-
-  useEffect(() => {
-    if (slide >= slides.length) setSlide(0);
-  }, [slide, slides.length]);
-
-  function goNext() {
+  const goNext = useCallback(() => {
     if (animating || slides.length === 0) return;
     setAnimating(true);
     Animated.timing(slideAnim, {
@@ -246,7 +241,16 @@ export function HomeScreen({ navigation }: Props) {
         setAnimating(false);
       });
     });
-  }
+  }, [animating, slideAnim, slides.length]);
+
+  useEffect(() => {
+    const timer = setInterval(goNext, 3000);
+    return () => clearInterval(timer);
+  }, [goNext]);
+
+  useEffect(() => {
+    if (slide >= slides.length) setSlide(0);
+  }, [slide, slides.length]);
 
   return (
     <ScreenBackground>
@@ -507,6 +511,10 @@ export function HomeScreen({ navigation }: Props) {
         visible={routineModalVisible}
         routine={todayRoutine}
         onClose={() => setRoutineModalVisible(false)}
+        onEdit={routineId => {
+          setRoutineModalVisible(false);
+          navigation.navigate('RoutineCreate', { routineId });
+        }}
       />
       <WorldPreviewModal
         scenarioId={previewScenarioId}

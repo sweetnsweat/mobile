@@ -10,7 +10,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { getFavoriteExercises, ExerciseListItem } from '../../services/ExerciseService';
-import { createCustomRoutine } from '../../services/RoutineService';
+import { createCustomRoutine, getRoutine, RoutineDetailResponse, updateRoutine } from '../../services/RoutineService';
 import { getMyProfile } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoutineCreate'>;
@@ -60,6 +60,7 @@ type ExerciseDraft = {
   emoji: string;
   sets: string;
   reps: string;
+  durationSec: string;
   restSec: string;
 };
 
@@ -88,7 +89,7 @@ function defaultSession(): SessionDraft {
 
 // ─── 메인 화면 ────────────────────────────────────────────────────────────────
 
-export function RoutineCreateScreen({ navigation }: Props) {
+export function RoutineCreateScreen({ navigation, route }: Props) {
   const [routineName, setRoutineName] = useState('');
   const [sessions, setSessions]       = useState<SessionDraft[]>([defaultSession()]);
   const [saving, setSaving]           = useState(false);
@@ -192,10 +193,55 @@ export function RoutineCreateScreen({ navigation }: Props) {
           emoji: ex.emoji,
           sets: '3',
           reps: '12',
+          durationSec: '',
           restSec: '60',
         }],
       };
     }));
+  }
+
+  const editingRoutineId = route.params?.routineId;
+  const isEditing = editingRoutineId != null;
+
+  useEffect(() => {
+    if (!editingRoutineId) return;
+    let mounted = true;
+
+    getRoutine(editingRoutineId)
+      .then(routine => {
+        if (!mounted) return;
+        hydrateRoutineForm(routine);
+      })
+      .catch((e: any) => {
+        Alert.alert('오류', e?.message ?? '루틴 정보를 불러오지 못했습니다.');
+      });
+
+    return () => { mounted = false; };
+  }, [editingRoutineId]);
+
+  function hydrateRoutineForm(routine: RoutineDetailResponse) {
+    setRoutineName(routine.name);
+    setSessions(
+      routine.sessions.length > 0
+        ? routine.sessions.map(session => ({
+            key: nextKey(),
+            dayOfWeek: session.dayOfWeek,
+            sessionName: session.sessionName,
+            sessionType: session.sessionType,
+            estimatedMinutes: String(session.estimatedMinutes ?? ''),
+            exercises: session.items.map(item => ({
+              key: nextKey(),
+              exerciseId: item.exercise.id,
+              name: item.exercise.name,
+              emoji: '🏋️',
+              sets: item.sets != null ? String(item.sets) : '',
+              reps: item.reps != null ? String(item.reps) : '',
+              durationSec: item.durationSec != null ? String(item.durationSec) : '',
+              restSec: item.restSec != null ? String(item.restSec) : '',
+            })),
+          }))
+        : [defaultSession()],
+    );
   }
 
   // ── 제출 ──────────────────────────────────────────────────────────────────
@@ -218,7 +264,7 @@ export function RoutineCreateScreen({ navigation }: Props) {
 
     setSaving(true);
     try {
-      await createCustomRoutine({
+      const request = {
         name: routineName.trim(),
         activate: true,
         sessions: sessions.map(s => ({
@@ -228,12 +274,19 @@ export function RoutineCreateScreen({ navigation }: Props) {
           estimatedMinutes: parseInt(s.estimatedMinutes, 10) || undefined,
           items: s.exercises.map(e => ({
             exerciseId: e.exerciseId,
-            sets:    parseInt(e.sets, 10)    || undefined,
-            reps:    parseInt(e.reps, 10)    || undefined,
-            restSec: parseInt(e.restSec, 10) || undefined,
+            sets:        parseInt(e.sets, 10)        || undefined,
+            reps:        parseInt(e.reps, 10)        || undefined,
+            durationSec: parseInt(e.durationSec, 10) || undefined,
+            restSec:     parseInt(e.restSec, 10)     || undefined,
           })),
         })),
-      });
+      };
+
+      if (editingRoutineId) {
+        await updateRoutine(editingRoutineId, request);
+      } else {
+        await createCustomRoutine(request);
+      }
 
       const profile = await getMyProfile();
       if (!profile.todayConditionCompleted) {
@@ -260,7 +313,7 @@ export function RoutineCreateScreen({ navigation }: Props) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <ChevronLeft size={16} color="#fff" strokeWidth={2.5} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>루틴 만들기</Text>
+          <Text style={s.headerTitle}>{isEditing ? '루틴 수정' : '루틴 만들기'}</Text>
           <View style={{ width: 32 }} />
         </LinearGradient>
 
@@ -318,7 +371,7 @@ export function RoutineCreateScreen({ navigation }: Props) {
             <LinearGradient colors={['#ec4899', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.saveGrad}>
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={s.saveTxt}>루틴 저장하기</Text>}
+                : <Text style={s.saveTxt}>{isEditing ? '루틴 수정하기' : '루틴 저장하기'}</Text>}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -508,6 +561,16 @@ function ExerciseRow({ exercise, onUpdate, onRemove }: ExerciseRowProps) {
             keyboardType="number-pad"
             style={s.exInput}
             maxLength={4}
+          />
+        </View>
+        <View style={s.exInputWrap}>
+          <Text style={s.exInputLabel}>시간(초)</Text>
+          <TextInput
+            value={exercise.durationSec}
+            onChangeText={v => onUpdate({ durationSec: v.replace(/[^0-9]/g, '') })}
+            keyboardType="number-pad"
+            style={s.exInput}
+            maxLength={5}
           />
         </View>
         <View style={s.exInputWrap}>

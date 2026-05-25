@@ -54,6 +54,24 @@ export interface UpdateUserInfoRequest {
   weightKg?: number;
 }
 
+export interface UserBadge {
+  itemId: number;
+  badgeCode: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  criteria: string | null;
+  earned: boolean;
+  earnedAt: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface UserBadgesResponse {
+  badges: UserBadge[];
+  earnedCount: number;
+  totalCount: number;
+}
+
 function authHeader(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth?.accessToken) throw new Error('로그인이 필요합니다.');
@@ -89,5 +107,58 @@ export async function getMyProfile(): Promise<UserProfileResponse> {
     `${BASE_URL}/me`,
     { headers: authHeader() },
   );
+  return response.data.data;
+}
+
+export async function getMyBadges(): Promise<UserBadgesResponse> {
+  const url = `${BASE_URL}/me/badges`;
+
+  console.log('[BadgeAPI] get badges request', {
+    method: 'GET',
+    url,
+    body: null,
+  });
+
+  const response = await axios.get<{ data: UserBadgesResponse }>(
+    url,
+    { headers: authHeader() },
+  );
+
+  console.log('[BadgeAPI] get badges response', JSON.stringify(response.data, null, 2));
+  console.log('[BadgeAPI] get badges summary', {
+    earnedCount: response.data.data.earnedCount,
+    totalCount: response.data.data.totalCount,
+    earnedBadges: response.data.data.badges
+      .filter(badge => badge.earned)
+      .map(badge => badge.badgeCode),
+  });
+
+  return response.data.data;
+}
+
+export async function syncMyBadges(): Promise<UserBadgesResponse> {
+  const url = `${BASE_URL}/me/badges/sync`;
+
+  console.log('[BadgeAPI] sync badges request', {
+    method: 'POST',
+    url,
+    body: {},
+  });
+
+  const response = await axios.post<{ data: UserBadgesResponse }>(
+    url,
+    {},
+    { headers: authHeader() },
+  );
+
+  console.log('[BadgeAPI] sync badges response', JSON.stringify(response.data, null, 2));
+  console.log('[BadgeAPI] sync badges summary', {
+    earnedCount: response.data.data.earnedCount,
+    totalCount: response.data.data.totalCount,
+    earnedBadges: response.data.data.badges
+      .filter(badge => badge.earned)
+      .map(badge => badge.badgeCode),
+  });
+
   return response.data.data;
 }

@@ -7,6 +7,7 @@ const BASE_URL = API_BASE_URL;
 export type BattleMode = 'DAILY' | 'WEEKLY';
 export type BattleStatus = 'ACTIVE' | 'FINALIZED' | 'CANCELLED';
 export type BattleResult = 'PENDING' | 'WIN' | 'LOSS' | 'DRAW';
+export type BattleMatchStatus = 'WAITING' | 'MATCHED';
 
 export interface BattleSummaryBattle {
   battleId: number;
@@ -69,6 +70,13 @@ export interface BattleDetail {
     leadingUserId: number | null;
   };
   metrics: BattleMetric[];
+}
+
+export interface BattleMatchDetail extends Omit<BattleDetail, 'battleId' | 'status'> {
+  battleId: number | null;
+  status: BattleStatus | null;
+  matchStatus: BattleMatchStatus;
+  queuedAt: string | null;
 }
 
 export interface BattleResultDetail {
@@ -170,13 +178,13 @@ export async function getBattleSummary(): Promise<BattleSummary> {
   }
 }
 
-export async function matchBattle(mode: BattleMode): Promise<BattleDetail> {
+export async function matchBattle(mode: BattleMode): Promise<BattleMatchDetail> {
   const url = `${BASE_URL}/battles/match`;
   const payload = { mode };
   logBattleRequest('match', 'POST', url, payload);
 
   try {
-    const res = await axios.post<{ data: BattleDetail }>(url, payload, {
+    const res = await axios.post<{ data: BattleMatchDetail }>(url, payload, {
       headers: authHeader(),
     });
     return logBattleResponse('match', res.data.data);

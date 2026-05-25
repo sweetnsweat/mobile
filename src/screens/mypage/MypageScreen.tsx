@@ -21,7 +21,13 @@ import {
   deactivateRegisteredFcmToken,
   registerFcmTokenForCurrentUser,
 } from '../../services/FcmService';
-import { getMyProfile, resolveProfileImageUrl, UserProfileResponse } from '../../services/UserService';
+import {
+  getMyBadges,
+  getMyProfile,
+  resolveProfileImageUrl,
+  UserBadge,
+  UserProfileResponse,
+} from '../../services/UserService';
 import { getWeeklyStats, WeeklyStatsResponse } from '../../services/StatsService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Mypage'>;
@@ -33,15 +39,6 @@ const PROFILE = {
   followers: 38, following: 22, streak: 7,
 };
 
-const BADGES = [
-  { emoji: '🔥', label: '7일 연속', colors: ['#fb923c','#f87171'] as [string,string] },
-  { emoji: '🏃', label: '첫 5K',   colors: ['#f472b6','#fb7185'] as [string,string] },
-  { emoji: '💪', label: '근력왕',   colors: ['#38bdf8','#60a5fa'] as [string,string] },
-  { emoji: '⚡', label: '퀘스트 10',colors: ['#facc15','#fb923c'] as [string,string] },
-  { emoji: '🌟', label: 'TOP 3',   colors: ['#c084fc','#f472b6'] as [string,string] },
-  { emoji: '🎯', label: '목표달성', colors: ['#34d399','#2dd4bf'] as [string,string] },
-];
-
 type SettingIcon = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
 const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolean; toggleKey?: string; danger?: boolean }[] = [
@@ -49,6 +46,7 @@ const SETTINGS: { Icon: SettingIcon; label: string; sub: string; toggle?: boolea
   { Icon: Moon,    label: '다크 모드',   sub: '앱 테마 변경',      toggle: true, toggleKey: 'dark' },
   { Icon: Shield,  label: '개인정보 보호', sub: '계정 공개 범위' },
   { Icon: Settings,label: '회원정보 수정',   sub: '' },
+  { Icon: Shield,  label: '비밀번호 변경',   sub: '현재 비밀번호로 변경' },
   { Icon: LogOut,  label: '로그아웃',    sub: '', danger: true },
 ];
 
@@ -59,6 +57,8 @@ export function MypageScreen({ navigation }: Props) {
   const [nickname, setNickname] = useState('');
   const [profileImageUrl, setProfileImageUrl] = useState('');
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
+  const [badgeCounts, setBadgeCounts] = useState({ earned: 0, total: 0 });
   const level = profile?.level ?? 1;
   const currentLevelExp = profile?.currentLevelExp ?? 0;
   const nextLevelRequiredExp = Math.max(1, profile?.nextLevelRequiredExp ?? 1);
@@ -67,6 +67,7 @@ export function MypageScreen({ navigation }: Props) {
     profile?.nextLevelRemainingExp ?? nextLevelRequiredExp - currentLevelExp,
   );
   const expPct = Math.max(0, Math.min(100, Math.round((currentLevelExp / nextLevelRequiredExp) * 100)));
+  const previewBadges = badges.slice(0, 6);
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -81,6 +82,17 @@ export function MypageScreen({ navigation }: Props) {
       .catch(() => {});
 
     getWeeklyStats().then(setWeeklyStats).catch(() => setWeeklyStats(null));
+    getMyBadges()
+      .then(data => {
+        if (!isActive) return;
+        setBadges(data.badges);
+        setBadgeCounts({ earned: data.earnedCount, total: data.totalCount });
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setBadges([]);
+        setBadgeCounts({ earned: 0, total: 0 });
+      });
 
     return () => {
       isActive = false;
@@ -234,18 +246,33 @@ export function MypageScreen({ navigation }: Props) {
                 <Text style={{ fontSize: 16 }}>🏆</Text>
                 <Text style={s.sectionTitleTxt}>획득 배지</Text>
               </View>
-              <TouchableOpacity style={s.viewAllBtn}>
-                <Text style={s.viewAllTxt}>전체보기</Text>
+              <TouchableOpacity
+                style={s.viewAllBtn}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('BadgeList')}
+              >
+                <Text style={s.viewAllTxt}>{badgeCounts.earned}/{badgeCounts.total}</Text>
                 <ChevronRight size={12} color="#ec4899" strokeWidth={3} />
               </TouchableOpacity>
             </View>
             <View style={s.badgeRow}>
-              {BADGES.map(b => (
-                <View key={b.label} style={s.badgeItem}>
-                  <LinearGradient colors={b.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.badgeCircle}>
-                    <Text style={s.badgeEmoji}>{b.emoji}</Text>
+              {badges.length === 0 ? (
+                <Text style={s.badgeEmptyTxt}>아직 표시할 배지가 없습니다.</Text>
+              ) : previewBadges.map(b => (
+                <View key={b.badgeCode} style={[s.badgeItem, !b.earned && s.badgeItemLocked]}>
+                  <LinearGradient
+                    colors={b.earned ? ['#f472b6', '#38bdf8'] : ['#e5e7eb', '#f3f4f6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.badgeCircle}
+                  >
+                    {b.imageUrl ? (
+                      <ImageWithFallback uri={resolveProfileImageUrl(b.imageUrl)} style={s.badgeImg} />
+                    ) : (
+                      <Text style={s.badgeEmoji}>{b.earned ? '🏆' : '🔒'}</Text>
+                    )}
                   </LinearGradient>
-                  <Text style={s.badgeLabel}>{b.label}</Text>
+                  <Text style={[s.badgeLabel, !b.earned && s.badgeLabelLocked]} numberOfLines={2}>{b.name}</Text>
                 </View>
               ))}
             </View>
@@ -278,6 +305,7 @@ export function MypageScreen({ navigation }: Props) {
                     onPress={() => {
                       if (danger) { handleLogout(); }
                       else if (label === '회원정보 수정') { navigation.navigate('EditProfile'); }
+                      else if (label === '비밀번호 변경') { navigation.navigate('ChangePassword'); }
                       else if (toggleKey === 'bell') { handleToggleNotification(); }
                       else if (toggleKey) { setToggles(p => ({ ...p, [toggleKey]: !p[toggleKey] })); }
                     }}
@@ -374,11 +402,15 @@ const s = StyleSheet.create({
   badgeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   viewAllTxt: { fontSize: 11, fontWeight: '700', color: '#ec4899' },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  badgeItem: { alignItems: 'center', gap: 4 },
+  badgeRow: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'space-between', gap: 4 },
+  badgeItem: { width: 46, alignItems: 'center', gap: 4 },
+  badgeItemLocked: { opacity: 0.55 },
   badgeCircle: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  badgeImg: { width: '100%', height: '100%' },
   badgeEmoji: { fontSize: 20 },
   badgeLabel: { fontSize: 9, fontWeight: '700', color: '#6b7280', textAlign: 'center' },
+  badgeLabelLocked: { color: '#9ca3af' },
+  badgeEmptyTxt: { fontSize: 12, fontWeight: '700', color: '#9ca3af' },
 
   settingsCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
   settingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },

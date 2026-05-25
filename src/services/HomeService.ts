@@ -137,6 +137,14 @@ function authHeader(): Record<string, string> {
   return { Authorization: `Bearer ${auth.accessToken}` };
 }
 
+function logWorldRequest(label: string, method: 'GET' | 'POST', url: string, params?: unknown, body: unknown = null): void {
+  console.log(`[WorldAPI] ${label} request`, { method, url, params, body });
+}
+
+function logWorldResponse(label: string, data: unknown): void {
+  console.log(`[WorldAPI] ${label} response`, JSON.stringify(data, null, 2));
+}
+
 export function resolveMediaUrl(url?: string | null): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -144,18 +152,26 @@ export function resolveMediaUrl(url?: string | null): string {
 }
 
 export async function getWorldBanners(limit = 3): Promise<WorldBannerSlide[]> {
+  const url = `${BASE_URL}/home/world-banners`;
+  const params = { limit };
+  logWorldRequest('home world banners', 'GET', url, params);
   const response = await axios.get<{ data: WorldBannersResponse }>(
-    `${BASE_URL}/home/world-banners`,
-    { headers: authHeader(), params: { limit } },
+    url,
+    { headers: authHeader(), params },
   );
+  logWorldResponse('home world banners', response.data);
   return response.data.data.slides;
 }
 
 export async function getWorldRankings(limit = 5): Promise<WorldRankingItem[]> {
+  const url = `${BASE_URL}/worlds/rankings`;
+  const params = { limit };
+  logWorldRequest('world rankings', 'GET', url, params);
   const response = await axios.get<{ data: WorldRankingsResponse }>(
-    `${BASE_URL}/worlds/rankings`,
-    { headers: authHeader(), params: { limit } },
+    url,
+    { headers: authHeader(), params },
   );
+  logWorldResponse('world rankings', response.data);
   return response.data.data.rankings;
 }
 
@@ -168,33 +184,47 @@ export async function getFullWorldRankings(
   const params: Record<string, unknown> = { page, size };
   if (genre && genre !== '전체') params.genre = genre;
   if (keyword) params.keyword = keyword;
+  const url = `${BASE_URL}/worlds/rankings/full`;
+  logWorldRequest('full world rankings', 'GET', url, params);
   const response = await axios.get<{ data: WorldRankingPageResponse }>(
-    `${BASE_URL}/worlds/rankings/full`,
+    url,
     { headers: authHeader(), params },
   );
+  logWorldResponse('full world rankings', response.data);
   return response.data.data.rankings;
 }
 
 export async function getWorldPreview(scenarioId: number): Promise<WorldPreviewData> {
+  const url = `${BASE_URL}/worlds/${scenarioId}/preview`;
+  logWorldRequest('world preview', 'GET', url, { scenarioId });
   const response = await axios.get<{ data: WorldPreviewData }>(
-    `${BASE_URL}/worlds/${scenarioId}/preview`,
+    url,
     { headers: authHeader() },
   );
+  logWorldResponse('world preview', response.data);
   return response.data.data;
 }
 
 export async function getWeeklyActivityRankings(size = 3): Promise<WeeklyActivityRankingItem[]> {
+  const url = `${BASE_URL}/rankings/weekly-activity`;
+  const params = { size };
+  logWorldRequest('weekly activity rankings', 'GET', url, params);
   const response = await axios.get<{ data: WeeklyActivityRankingsResponse }>(
-    `${BASE_URL}/rankings/weekly-activity`,
-    { headers: authHeader(), params: { size } },
+    url,
+    { headers: authHeader(), params },
   );
+  logWorldResponse('weekly activity rankings', response.data);
   return response.data.data.rankings;
 }
 
 export async function getWeeklyActivityRankingsFull(size = 100): Promise<WeeklyActivityRankingsResponse> {
+  const url = `${BASE_URL}/rankings/weekly-activity`;
+  const params = { size };
+  logWorldRequest('weekly activity rankings full', 'GET', url, params);
   const response = await axios.get<{ data: WeeklyActivityRankingsResponse }>(
-    `${BASE_URL}/rankings/weekly-activity`,
-    { headers: authHeader(), params: { size } },
+    url,
+    { headers: authHeader(), params },
   );
+  logWorldResponse('weekly activity rankings full', response.data);
   return response.data.data;
 }

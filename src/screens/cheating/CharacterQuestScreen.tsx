@@ -20,7 +20,7 @@ import {
   StoryPlayResponse,
   StoryChoice,
 } from '../../services/StoryService';
-import { completeQuest, getTodayQuest } from '../../services/QuestService';
+import { completeQuest, getTodayQuest, type CompleteQuestRequest } from '../../services/QuestService';
 import { readQuestVerificationHealthSamples } from '../../services/HealthConnectService';
 import { AI_MEDIA_ORIGIN } from '../../config/api';
 
@@ -43,6 +43,7 @@ interface ChatMessage {
   role: Role;
   text: string;
   speaker?: string;
+  characterImg?: string;
   sourceKey?: string;
   time?: string;
   questId?: number;
@@ -208,7 +209,14 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     if (storyTexts.length > 0) {
       storyTexts.forEach(storyText => {
         const role = storyText.type === 'narration' ? 'narration' : 'character';
-        pushMessage(role, storyText.text, role === 'character' ? speaker : undefined, storyText.sourceKey);
+        pushMessage(
+          role,
+          storyText.text,
+          role === 'character' ? speaker : undefined,
+          storyText.sourceKey,
+          undefined,
+          role === 'character' ? resolveCharacterImage((data as any).character_image_url) : undefined,
+        );
       });
     } else if (data.phase) {
       pushMessage('system', `[${phaseLabel(data.phase)}${data.chapter_num ? ` · 챕터 ${data.chapter_num}` : ''}${data.unit_index != null ? ` · ${data.unit_index + 1}/${data.total_units}` : ''}]`);
@@ -220,7 +228,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
       data.dialogue.forEach((item: any) => {
         const text = item.dialogue ?? item.text;
         const itemSpeaker = item.character_name ?? item.name;
-        if (text) pushMessage('character', text, itemSpeaker, undefined, formattedTime);
+        const itemImg = resolveCharacterImage(item.character_image_url ?? item.image_url);
+        if (text) pushMessage('character', text, itemSpeaker, undefined, formattedTime, itemImg);
       });
     }
 
@@ -244,8 +253,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     }
   }
 
-  function pushMessage(role: Role, text: string, speaker?: string, sourceKey?: string, time?: string) {
-    setMessages(prev => [...prev, { id: msgId(), role, text, speaker, sourceKey, time }]);
+  function pushMessage(role: Role, text: string, speaker?: string, sourceKey?: string, time?: string, characterImg?: string) {
+    setMessages(prev => [...prev, { id: msgId(), role, text, speaker, sourceKey, time, characterImg }]);
   }
 
   // ── 상태만 갱신 (메시지 추가 없이) ──────────────────────────────────────
@@ -410,19 +419,37 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
         todayQuest.verificationWindow?.startTime ??
         activeQuest.data?.verificationWindow?.startTime;
 
-      const completeRequest = verificationStartTime
-        ? {
-            healthSamples: (
-              await readQuestVerificationHealthSamples(
-                verificationStartTime,
-                new Date().toISOString(),
-              )
-            ).samples,
-          }
-        : {
-            progressValue: 1,
-            proof: { source: 'manual' },
-          };
+      const completionEndTime = new Date().toISOString();
+      console.log('[QuestAPI] complete quest health window', {
+        questId,
+        verificationStartTime,
+        completionEndTime,
+      });
+
+      let completeRequest: CompleteQuestRequest;
+      if (verificationStartTime) {
+        const healthResult = await readQuestVerificationHealthSamples(
+          verificationStartTime,
+          completionEndTime,
+        );
+        console.log('[QuestAPI] complete quest health samples', {
+          sampleCount: healthResult.samples.length,
+          grantedRecordTypes: healthResult.grantedRecordTypes,
+          deniedRecordTypes: healthResult.deniedRecordTypes,
+          samples: JSON.stringify(healthResult.samples, null, 2),
+        });
+        completeRequest = { healthSamples: healthResult.samples };
+      } else {
+        completeRequest = {
+          progressValue: 1,
+          proof: { source: 'manual' },
+        };
+        console.log('[QuestAPI] complete quest manual fallback', {
+          questId,
+          reason: 'missing_verification_start_time',
+          body: JSON.stringify(completeRequest, null, 2),
+        });
+      }
 
       const result = await completeQuest(questId, completeRequest);
       setActiveQuest(null);
@@ -481,6 +508,16 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     if (!showTextInput || sending) return;
     requestAnimationFrame(() => inputRef.current?.focus());
   }
+
+  useEffect(() => {
+    if (!showTextInput || sending || loading || messages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [showTextInput, sending, loading, messages.length]);
 
   // ── 렌더 ─────────────────────────────────────────────────────────────────
 
@@ -683,9 +720,9 @@ function MessageBubble({
   completingQuest?: boolean;
   onQuestComplete?: () => void;
 }) {
+  const resolvedCharacterImg = message.characterImg || characterImg;
   const sparkPulse = usePulseAnimation();
   const starPulse  = usePulseAnimation();
-  const newPulse   = usePulseAnimation();
 
   if (message.role === 'quest') {
     const q = firstStoryQuest(message.questData);
@@ -875,7 +912,7 @@ function MessageBubble({
   return (
     <View style={s.msgRow}>
       <View style={s.msgAvatar}>
-        <ImageWithFallback uri={characterImg} style={s.msgAvatarImg} />
+        <ImageWithFallback uri={resolvedCharacterImg} style={s.msgAvatarImg} />
       </View>
       <View style={s.msgBubbleWrap}>
         {message.speaker && <Text style={s.msgSpeaker}>{message.speaker}</Text>}
@@ -932,11 +969,11 @@ chatScroll: { flex: 1 },
   typingBubble: { backgroundColor: '#fff', borderRadius: 16, borderTopLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 2, borderColor: '#fbcfe8' },
 
   // 퀘스트 발표 (Screen2 스타일)
-  announcementWrap: { alignItems: 'center' },
-  announcement: { backgroundColor: 'rgba(107,114,128,0.2)', borderRadius: 16, paddingHorizontal: 24, paddingVertical: 16, maxWidth: '90%', borderWidth: 2, borderColor: 'rgba(156,163,175,0.3)', gap: 8 },
+  announcementWrap: { alignItems: 'center', width: '100%' },
+  announcement: { width: '100%', backgroundColor: 'rgba(107,114,128,0.2)', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, borderWidth: 2, borderColor: 'rgba(156,163,175,0.3)', gap: 8 },
   sparkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   announcementTitle: { fontSize: 18, fontWeight: '800', color: '#1f2937', fontStyle: 'italic' },
-  announcementSub: { fontSize: 14, color: '#4b5563', fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
+  announcementSub: { width: '100%', flexShrink: 1, flexWrap: 'wrap', fontSize: 14, color: '#4b5563', fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
 
   // 나레이션
   narrationWrap: { alignItems: 'center', gap: 4 },

@@ -21,6 +21,11 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface UserProfile {
   id: number;
   email: string | null;
@@ -139,6 +144,26 @@ export const requestPasswordReset = async (loginId: string, email: string): Prom
   } catch (error: any) {
     if (error.response) {
       throw new Error(error.response.data?.message || '비밀번호 재설정 요청에 실패했습니다.');
+    }
+    throw new Error('네트워크 오류가 발생했습니다.');
+  }
+};
+
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  const auth = getStoredAuth();
+  if (!auth?.accessToken) throw new Error('로그인이 필요합니다.');
+
+  try {
+    const request: ChangePasswordRequest = { currentPassword, newPassword };
+    await api.put('/password', request, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+      },
+    });
+  } catch (error: any) {
+    if (error.response) {
+      const data = error.response.data;
+      throw new Error(data?.detail || data?.message || '비밀번호 변경에 실패했습니다.');
     }
     throw new Error('네트워크 오류가 발생했습니다.');
   }

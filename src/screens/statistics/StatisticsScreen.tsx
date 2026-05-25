@@ -1,62 +1,29 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Animated, Dimensions, StatusBar,
+  Animated, Dimensions, StatusBar, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LineChart, BarChart } from 'react-native-chart-kit';
-import { ChevronLeft, Dumbbell, MessageCircle, TrendingUp, Heart, Zap, BarChart3, Activity, Calendar, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Dumbbell, MessageCircle, TrendingUp, Heart, Zap, BarChart3, Activity as ActivityIcon, Calendar, Sparkles } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { GradientText } from '../../components/GradientText';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { useBounceAnimation } from '../../hooks/useBounceAnimation';
+import { getRecordStats, RecordStatsPeriod, RecordStatsResponse } from '../../services/StatsService';
+import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
 
 const { width: W } = Dimensions.get('window');
-const CHART_W = W - 64;
+const CHART_W = Math.max(220, Math.min(W - 128, 504));
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Statistics'>;
 type Period = 'week' | 'month' | 'year';
 
-const weeklyData  = [
-  { date: '월', condition: 7, energy: 6, stress: 3, exercise: '수영' },
-  { date: '화', condition: 6, energy: 5, stress: 4, exercise: '없음' },
-  { date: '수', condition: 8, energy: 8, stress: 2, exercise: '수영' },
-  { date: '목', condition: 7, energy: 7, stress: 3, exercise: '없음' },
-  { date: '금', condition: 9, energy: 9, stress: 2, exercise: '수영' },
-  { date: '토', condition: 8, energy: 8, stress: 2, exercise: '홈 트레이닝' },
-  { date: '일', condition: 8, energy: 8, stress: 3, exercise: '없음' },
-];
-const monthlyData = [
-  { date: '1주', condition: 6, energy: 6, stress: 4 },
-  { date: '2주', condition: 7, energy: 7, stress: 3 },
-  { date: '3주', condition: 8, energy: 8, stress: 2 },
-  { date: '4주', condition: 8.5, energy: 8.5, stress: 2 },
-];
-const yearlyData = [
-  { date: '1월', condition: 5, energy: 5, stress: 5 },
-  { date: '2월', condition: 5.5, energy: 5.5, stress: 4.5 },
-  { date: '3월', condition: 6, energy: 6, stress: 4 },
-  { date: '4월', condition: 6.5, energy: 6.5, stress: 3.5 },
-  { date: '5월', condition: 7, energy: 7, stress: 3 },
-  { date: '6월', condition: 7.5, energy: 7.5, stress: 2.5 },
-];
-const exerciseData = [
-  { exercise: '수영', avgCondition: 8.3 },
-  { exercise: '홈트', avgCondition: 7.8 },
-  { exercise: '요가', avgCondition: 7.5 },
-  { exercise: '조깅', avgCondition: 7.2 },
-  { exercise: '없음', avgCondition: 6.1 },
-];
-
-const INSIGHTS: Record<Period, { avg: string; count: string; improve: string }> = {
-  week:  { avg: '8.1/10', count: '4회', improve: '+36%' },
-  month: { avg: '7.8/10', count: '16회', improve: '+28%' },
-  year:  { avg: '6.8/10', count: '72회', improve: '+52%' },
-};
 const INSIGHT_LABELS: Record<Period, string> = { week: '이번 주', month: '이번 달', year: '올해' };
 const COMPARE_LABELS: Record<Period, string> = { week: '지난주 대비', month: '지난달 대비', year: '작년 대비' };
+const API_PERIODS: Record<Period, RecordStatsPeriod> = { week: 'WEEKLY', month: 'MONTHLY', year: 'YEARLY' };
 
 const chartConfig = {
   backgroundColor: '#fdf2f8',
@@ -71,28 +38,75 @@ const chartConfig = {
 
 export function StatisticsScreen({ navigation }: Props) {
   const [period, setPeriod] = useState<Period>('week');
+  const [stats, setStats] = useState<RecordStatsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const b1 = useBounceAnimation(3000);
   const b2 = useBounceAnimation(2500);
   const b3 = useBounceAnimation(3200);
   const b4 = useBounceAnimation(2800);
 
-  const currentData = period === 'week' ? weeklyData : period === 'month' ? monthlyData : yearlyData;
-  const ins = INSIGHTS[period];
+  useEffect(() => {
+    let alive = true;
 
-  const lineData = {
-    labels: currentData.map(d => d.date),
-    datasets: [
-      { data: currentData.map(d => d.condition), color: () => '#ec4899', strokeWidth: 2.5 },
-      { data: currentData.map(d => d.energy),    color: () => '#0ea5e9', strokeWidth: 2.5 },
-      { data: currentData.map(d => d.stress),    color: () => '#a855f7', strokeWidth: 2.5 },
-    ],
-    legend: ['컨디션', '에너지', '스트레스'],
-  };
+    setLoading(true);
+    setErrorMessage(null);
+    async function loadStats() {
+      try {
+        await syncHealthDataWithServerIfStale();
+      } catch (e) {
+        console.log('[HealthDataSync] statistics skipped:', e instanceof Error ? e.message : e);
+      }
 
-  const barData = {
-    labels: exerciseData.map(d => d.exercise),
-    datasets: [{ data: exerciseData.map(d => d.avgCondition) }],
-  };
+      try {
+        const data = await getRecordStats(API_PERIODS[period]);
+        if (alive) setStats(data);
+      } catch (error: any) {
+        if (!alive) return;
+        const message = error?.response?.data?.detail ?? error?.message ?? '통계 데이터를 불러오지 못했습니다.';
+        setErrorMessage(message);
+        setStats(null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    loadStats();
+
+    return () => {
+      alive = false;
+    };
+  }, [period]);
+
+  const dailyRecords = stats?.dailyRecords ?? [];
+  const summary = stats?.summary;
+
+  const lineData = useMemo(() => {
+    const trend = stats?.conditionTrend ?? [];
+    const points = trend.length > 0 ? trend : [{ label: '-', conditionScore: 0, energyLevel: 0, stressScore: 0 }];
+    return {
+      labels: points.map(d => d.label),
+      datasets: [
+        { data: points.map(d => d.conditionScore ?? 0), color: () => '#ec4899', strokeWidth: 2.5 },
+        { data: points.map(d => d.energyLevel ?? 0),    color: () => '#0ea5e9', strokeWidth: 2.5 },
+        { data: points.map(d => d.stressScore ?? 0),    color: () => '#a855f7', strokeWidth: 2.5 },
+      ],
+      legend: ['컨디션', '에너지', '스트레스'],
+    };
+  }, [stats]);
+
+  const barData = useMemo(() => {
+    const exerciseEffects = stats?.exerciseEffects ?? [];
+    const points = exerciseEffects.length > 0 ? exerciseEffects : [{ label: '-', averageConditionScore: 0 }];
+    return {
+      labels: points.map(d => d.label),
+      datasets: [{ data: points.map(d => d.averageConditionScore ?? 0) }],
+    };
+  }, [stats]);
+
+  const averageCondition = summary?.averageConditionScore == null ? '-' : `${summary.averageConditionScore.toFixed(1)}/10`;
+  const exerciseCount = summary == null ? '-' : `${summary.exerciseCount}회`;
+  const improvementRate = summary == null ? '-' : `${summary.improvementRatePercent > 0 ? '+' : ''}${summary.improvementRatePercent}%`;
 
   return (
     <ScreenBackground>
@@ -149,6 +163,11 @@ export function StatisticsScreen({ navigation }: Props) {
 
             {/* Line chart */}
             <LinearGradient colors={['#fdf2f8', '#f0f9ff']} style={s.chartWrap}>
+              {loading && (
+                <View style={s.loadingOverlay}>
+                  <ActivityIndicator color="#db2777" />
+                </View>
+              )}
               <LineChart
                 data={lineData}
                 width={CHART_W}
@@ -163,6 +182,7 @@ export function StatisticsScreen({ navigation }: Props) {
                 segments={5}
               />
             </LinearGradient>
+            {errorMessage && <Text style={s.errorText}>{errorMessage}</Text>}
 
             {/* Insights */}
             <View style={s.insightRow}>
@@ -171,15 +191,15 @@ export function StatisticsScreen({ navigation }: Props) {
                   <LinearGradient colors={['#f472b6', '#fb7185']} style={s.insightIcon}><TrendingUp size={10} color="#fff" strokeWidth={2.5} /></LinearGradient>
                   <Text style={s.insightLabel}>평균 컨디션</Text>
                 </View>
-                <Text style={s.insightVal}>{ins.avg}</Text>
+                <Text style={s.insightVal}>{averageCondition}</Text>
                 <Text style={s.insightSub}>{INSIGHT_LABELS[period]} 평균</Text>
               </LinearGradient>
               <LinearGradient colors={['#f0f9ff', '#ecfeff']} style={s.insightCard}>
                 <View style={s.insightHeader}>
-                  <LinearGradient colors={['#38bdf8', '#06b6d4']} style={s.insightIcon}><Activity size={10} color="#fff" strokeWidth={2.5} /></LinearGradient>
+                  <LinearGradient colors={['#38bdf8', '#06b6d4']} style={s.insightIcon}><ActivityIcon size={10} color="#fff" strokeWidth={2.5} /></LinearGradient>
                   <Text style={s.insightLabel}>운동 횟수</Text>
                 </View>
-                <Text style={[s.insightVal, { color: '#0ea5e9' }]}>{ins.count}</Text>
+                <Text style={[s.insightVal, { color: '#0ea5e9' }]}>{exerciseCount}</Text>
                 <Text style={s.insightSub}>{INSIGHT_LABELS[period]}</Text>
               </LinearGradient>
               <LinearGradient colors={['#faf5ff', '#fdf4ff']} style={s.insightCard}>
@@ -187,7 +207,7 @@ export function StatisticsScreen({ navigation }: Props) {
                   <LinearGradient colors={['#c084fc', '#e879f9']} style={s.insightIcon}><Sparkles size={10} color="#fff" strokeWidth={2.5} /></LinearGradient>
                   <Text style={s.insightLabel}>개선율</Text>
                 </View>
-                <Text style={[s.insightVal, { color: '#a855f7' }]}>{ins.improve}</Text>
+                <Text style={[s.insightVal, { color: '#a855f7' }]}>{improvementRate}</Text>
                 <Text style={s.insightSub}>{COMPARE_LABELS[period]}</Text>
               </LinearGradient>
             </View>
@@ -222,55 +242,50 @@ export function StatisticsScreen({ navigation }: Props) {
             <LinearGradient colors={['#faf5ff', '#fdf2f8']} style={s.aiCard}>
               <View style={s.aiHeader}>
                 <LinearGradient colors={['#c084fc', '#f472b6']} style={s.aiIcon}><Sparkles size={20} color="#fff" strokeWidth={2.5} /></LinearGradient>
-                <Text style={s.aiTitle}>AI 분석 인사이트</Text>
+                <Text style={s.aiTitle}>{stats?.insight.title || '분석 인사이트'}</Text>
               </View>
-              <Text style={s.aiBody}>
-                최근 <Text style={s.aiHighBlue}>수영</Text>을 했을 때 평균 컨디션이{' '}
-                <Text style={s.aiHighPink}>8.3점</Text>으로 가장 높았어요!{'\n'}
-                운동을 하지 않은 날(6.1점)보다{' '}
-                <Text style={s.aiHighPurple}>36% 더 높은</Text> 수치입니다.{'\n\n'}
-                특히 수영 후에는{' '}
-                <Text style={[s.aiHighBlue, { fontWeight: '600' }]}>스트레스 레벨이 평균 2.3점</Text>으로 크게 감소했어요.
-              </Text>
+              <Text style={s.aiBody}>{stats?.insight.summary || '아직 분석할 기록이 충분하지 않습니다.'}</Text>
               <View style={s.aiRec}>
-                <Text style={s.aiRecTitle}>💡 추천 사항</Text>
-                <Text style={s.aiRecBody}>
-                  앞으로도 <Text style={{ fontWeight: '700' }}>수영과 같은 유산소 운동</Text>을 중심으로 추천해드릴게요.
-                  일주일에 3-4회 정도 규칙적으로 하시면 더 좋은 효과를 볼 수 있을 거예요!
-                </Text>
+                <Text style={s.aiRecTitle}>추천 사항</Text>
+                <Text style={s.aiRecBody}>{stats?.insight.recommendation || '기록이 쌓이면 더 구체적인 추천을 보여드릴게요.'}</Text>
               </View>
             </LinearGradient>
 
             {/* Weekly table */}
             <View style={s.tableSection}>
-              <Text style={s.tableTitle}>주간 운동 기록</Text>
+              <Text style={s.tableTitle}>운동 기록</Text>
               <View style={s.tableWrap}>
                 <LinearGradient colors={['#fce7f3', '#f0f9ff']} style={s.tableHeader}>
                   {['날짜', '운동', '컨디션', '에너지', '스트레스'].map(h => (
                     <Text key={h} style={s.tableHeaderCell}>{h}</Text>
                   ))}
                 </LinearGradient>
-                {weeklyData.map((day, i) => (
+                {dailyRecords.length === 0 && (
+                  <View style={s.emptyRow}>
+                    <Text style={s.emptyText}>표시할 운동 기록이 없습니다.</Text>
+                  </View>
+                )}
+                {dailyRecords.map((day, i) => (
                   <View key={i} style={[s.tableRow, i % 2 === 1 && { backgroundColor: '#f9fafb' }]}>
-                    <Text style={s.tableCell}>{day.date}</Text>
+                    <Text style={s.tableCell}>{day.dayOfWeek || day.date}</Text>
                     <View style={s.tableCellCenter}>
                       <View style={[s.exerciseBadge,
-                        day.exercise === '수영' ? { backgroundColor: '#e0f2fe' } :
-                        day.exercise.includes('트레이닝') ? { backgroundColor: '#fce7f3' } :
+                        day.exerciseLabel === '수영' ? { backgroundColor: '#e0f2fe' } :
+                        day.exerciseLabel.includes('트레이닝') ? { backgroundColor: '#fce7f3' } :
                         { backgroundColor: '#f3f4f6' }
                       ]}>
                         <Text style={[s.exerciseBadgeTxt,
-                          day.exercise === '수영' ? { color: '#0369a1' } :
-                          day.exercise.includes('트레이닝') ? { color: '#db2777' } :
+                          day.exerciseLabel === '수영' ? { color: '#0369a1' } :
+                          day.exerciseLabel.includes('트레이닝') ? { color: '#db2777' } :
                           { color: '#4b5563' }
                         ]}>
-                          {day.exercise === '홈 트레이닝' ? '홈트' : day.exercise}
+                          {day.exerciseLabel === '홈 트레이닝' ? '홈트' : day.exerciseLabel || '없음'}
                         </Text>
                       </View>
                     </View>
-                    <Text style={[s.tableCell, { color: '#ec4899', fontWeight: '700' }]}>{day.condition}</Text>
-                    <Text style={[s.tableCell, { color: '#0ea5e9', fontWeight: '700' }]}>{day.energy}</Text>
-                    <Text style={[s.tableCell, { color: '#a855f7', fontWeight: '700' }]}>{day.stress}</Text>
+                    <Text style={[s.tableCell, { color: '#ec4899', fontWeight: '700' }]}>{day.conditionScore ?? '-'}</Text>
+                    <Text style={[s.tableCell, { color: '#0ea5e9', fontWeight: '700' }]}>{day.energyLevel ?? '-'}</Text>
+                    <Text style={[s.tableCell, { color: '#a855f7', fontWeight: '700' }]}>{day.stressScore ?? '-'}</Text>
                   </View>
                 ))}
               </View>
@@ -317,8 +332,21 @@ const s = StyleSheet.create({
   periodBtn: { paddingVertical: 6, paddingHorizontal: 8, alignItems: 'center' },
   periodBtnTxt: { fontSize: 12, fontWeight: '500', color: '#374151' },
 
-  chartWrap: { borderRadius: 16, padding: 16, borderWidth: 2, borderColor: '#fbcfe8' },
+  chartWrap: { borderRadius: 16, padding: 16, borderWidth: 2, borderColor: '#fbcfe8', alignItems: 'center' },
   chart: { borderRadius: 12 },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: { marginTop: -24, fontSize: 12, color: '#b91c1c', textAlign: 'center' },
 
   insightRow: { flexDirection: 'row', gap: 8 },
   insightCard: { flex: 1, borderRadius: 16, padding: 8, borderWidth: 2, borderColor: '#f9a8d4', gap: 2 },
@@ -350,6 +378,8 @@ const s = StyleSheet.create({
   tableHeader: { flexDirection: 'row', paddingVertical: 8 },
   tableHeaderCell: { flex: 1, fontSize: 10, fontWeight: '700', color: '#1f2937', textAlign: 'center' },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#f3f4f6' },
+  emptyRow: { paddingVertical: 18, backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#f3f4f6' },
+  emptyText: { fontSize: 13, color: '#6b7280', textAlign: 'center' },
   tableCell: { flex: 1, fontSize: 14, color: '#1f2937', textAlign: 'center', fontWeight: '500' },
   tableCellCenter: { flex: 1, alignItems: 'center' },
   exerciseBadge: { borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 },

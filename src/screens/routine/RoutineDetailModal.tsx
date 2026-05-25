@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, Modal,
+  ScrollView, Modal, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { X, CalendarDays, Dumbbell, Clock, CheckCircle, Coffee } from 'lucide-react-native';
-import { RoutineItemResponse, TodayRoutineResponse } from '../../services/RoutineService';
+import { X, CalendarDays, Dumbbell, Clock, CheckCircle, Coffee, Pencil } from 'lucide-react-native';
+import { getRoutine, RoutineDetailResponse, RoutineItemResponse, RoutineSessionResponse, TodayRoutineResponse } from '../../services/RoutineService';
 
 const SESSION_TYPE_LABEL: Record<string, string> = {
   full_body: '전신',
@@ -23,16 +23,46 @@ interface Props {
   visible: boolean;
   routine: TodayRoutineResponse | null;
   onClose: () => void;
+  onEdit?: (routineId: number) => void;
 }
 
-export function RoutineDetailModal({ visible, routine, onClose }: Props) {
+export function RoutineDetailModal({ visible, routine, onClose, onEdit }: Props) {
+  const [routineDetail, setRoutineDetail] = useState<RoutineDetailResponse | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const hasRoutine = !!routine?.activeRoutineExists;
   const hasTodaySession = !!routine?.routineScheduledToday && !!routine?.session;
+  const routineId = routine?.routine?.id ?? null;
   const title = hasTodaySession
     ? routine.session?.sessionName ?? '오늘의 루틴'
     : hasRoutine
       ? '오늘은 쉬는 날'
       : '루틴 설정 필요';
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!visible || !routineId) {
+      setRoutineDetail(null);
+      return () => { alive = false; };
+    }
+
+    setDetailLoading(true);
+    getRoutine(routineId)
+      .then(data => {
+        if (alive) setRoutineDetail(data);
+      })
+      .catch(() => {
+        if (alive) setRoutineDetail(null);
+      })
+      .finally(() => {
+        if (alive) setDetailLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [visible, routineId]);
 
   return (
     <Modal
@@ -128,6 +158,28 @@ export function RoutineDetailModal({ visible, routine, onClose }: Props) {
                   />
                 )}
 
+                {hasRoutine && (
+                  <View style={s.card}>
+                    <View style={s.cardHeader}>
+                      <CalendarDays size={14} color="#ec4899" strokeWidth={2.5} />
+                      <Text style={s.cardTitle}>전체 루틴</Text>
+                    </View>
+                    {detailLoading ? (
+                      <ActivityIndicator color="#ec4899" style={s.detailLoading} />
+                    ) : routineDetail?.sessions.length ? (
+                      routineDetail.sessions.map((session, i) => (
+                        <FullSessionBlock
+                          key={session.id}
+                          session={session}
+                          border={i < routineDetail.sessions.length - 1}
+                        />
+                      ))
+                    ) : (
+                      <Text style={s.fullEmptyTxt}>전체 루틴 정보를 불러오지 못했습니다.</Text>
+                    )}
+                  </View>
+                )}
+
                 {hasTodaySession && (
                   <View style={s.summaryRow}>
                     <SummaryBadge icon={<Dumbbell size={14} color="#0284c7" />} label="운동" value={`${routine.session!.items.length}개`} />
@@ -140,6 +192,12 @@ export function RoutineDetailModal({ visible, routine, onClose }: Props) {
               </ScrollView>
 
               <View style={s.bottomArea}>
+                {routineId && onEdit && (
+                  <TouchableOpacity onPress={() => onEdit(routineId)} activeOpacity={0.85} style={s.editAction}>
+                    <Pencil size={16} color="#fff" strokeWidth={2.5} />
+                    <Text style={s.editActionTxt}>루틴 수정</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={onClose} activeOpacity={0.85} style={s.closeAction}>
                   <Text style={s.closeActionTxt}>확인</Text>
                 </TouchableOpacity>
@@ -149,6 +207,29 @@ export function RoutineDetailModal({ visible, routine, onClose }: Props) {
         </View>
       </View>
     </Modal>
+  );
+}
+
+function FullSessionBlock({ session, border }: { session: RoutineSessionResponse; border: boolean }) {
+  return (
+    <View style={[s.fullSession, border && s.fullSessionBorder]}>
+      <View style={s.fullSessionTop}>
+        <View style={s.fullDayBadge}>
+          <Text style={s.fullDayTxt}>{session.dayOfWeekDisplayName.slice(0, 1)}</Text>
+        </View>
+        <View style={s.fullSessionInfo}>
+          <Text style={s.fullSessionName}>{session.sessionName}</Text>
+          <Text style={s.fullSessionMeta}>
+            {(SESSION_TYPE_LABEL[session.sessionType] ?? session.sessionTypeDisplayName) || '세션'} · {session.estimatedMinutes}분 · {session.items.length}개
+          </Text>
+        </View>
+      </View>
+      {session.items.map((item, i) => (
+        <Text key={item.id} style={s.fullExerciseTxt} numberOfLines={1}>
+          {i + 1}. {item.exercise.name} · {formatRoutineItem(item)}
+        </Text>
+      ))}
+    </View>
   );
 }
 
@@ -267,7 +348,21 @@ const s = StyleSheet.create({
   summaryLabel: { fontSize: 10, fontWeight: '700', color: '#9ca3af' },
   summaryVal: { fontSize: 13, fontWeight: '900', color: '#374151' },
 
-  bottomArea: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingHorizontal: 16, paddingVertical: 12 },
+  detailLoading: { paddingVertical: 16 },
+  fullEmptyTxt: { fontSize: 12, fontWeight: '600', color: '#9ca3af', textAlign: 'center', paddingVertical: 10 },
+  fullSession: { gap: 8, paddingVertical: 12 },
+  fullSessionBorder: { borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+  fullSessionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  fullDayBadge: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#fdf2f8', borderWidth: 1, borderColor: '#fbcfe8', alignItems: 'center', justifyContent: 'center' },
+  fullDayTxt: { fontSize: 12, fontWeight: '900', color: '#ec4899' },
+  fullSessionInfo: { flex: 1 },
+  fullSessionName: { fontSize: 14, fontWeight: '800', color: '#1f2937' },
+  fullSessionMeta: { fontSize: 11, fontWeight: '600', color: '#9ca3af', marginTop: 1 },
+  fullExerciseTxt: { fontSize: 12, fontWeight: '600', color: '#6b7280', paddingLeft: 40 },
+
+  bottomArea: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  editAction: { borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ec4899', flexDirection: 'row', gap: 8 },
+  editActionTxt: { fontSize: 15, fontWeight: '800', color: '#fff' },
   closeAction: { borderRadius: 16, paddingVertical: 15, alignItems: 'center', backgroundColor: '#111827' },
   closeActionTxt: { fontSize: 15, fontWeight: '800', color: '#fff' },
 });

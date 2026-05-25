@@ -44,13 +44,23 @@ function authHeader(): Record<string, string> {
   return { Authorization: `Bearer ${auth.accessToken}` };
 }
 
+function logStoryRequest(label: string, method: 'GET' | 'POST', url: string, params?: unknown, body: unknown = null): void {
+  console.log(`[StoryAPI] ${label} request`, { method, url, params, body });
+}
+
+function logStoryResponse(label: string, data: unknown): void {
+  console.log(`[StoryAPI] ${label} response`, JSON.stringify(data, null, 2));
+}
+
 export async function playStory(req: StoryPlayRequest): Promise<StoryPlayResponse> {
+  const url = `${BASE_URL}/stories/play`;
+  logStoryRequest('play story', 'POST', url, undefined, req);
   const response = await axios.post<{ data: StoryPlayResponse }>(
-    `${BASE_URL}/stories/play`,
+    url,
     req,
     { headers: { 'Content-Type': 'application/json', ...authHeader() } },
   );
-  console.log('[StoryAPI] /play response data:', response.data.data);
+  logStoryResponse('play story', response.data);
   return response.data.data;
 }
 
@@ -61,10 +71,14 @@ export interface HistoryItem {
 }
 
 export async function fetchStoryHistory(scenario_id: number): Promise<HistoryItem[]> {
+  const url = `${BASE_URL}/stories/play/history`;
+  const params = { scenario_id };
+  logStoryRequest('story history', 'GET', url, params);
   const response = await axios.get<{ data: { items: HistoryItem[] } }>(
-    `${BASE_URL}/stories/play/history`,
-    { params: { scenario_id }, headers: authHeader() },
+    url,
+    { params, headers: authHeader() },
   );
+  logStoryResponse('story history', response.data);
   return response.data.data.items ?? [];
 }
 
@@ -261,17 +275,25 @@ export interface StoryChatRoomResponse {
 }
 
 export async function getStoryChatList(limit = 50): Promise<StoryChatListResponse> {
+  const url = `${BASE_URL}/stories/chats`;
+  const params = { limit };
+  logStoryRequest('chat list', 'GET', url, params);
   const response = await axios.get<{ data: StoryChatListResponse }>(
-    `${BASE_URL}/stories/chats`,
-    { params: { limit }, headers: authHeader() },
+    url,
+    { params, headers: authHeader() },
   );
+  logStoryResponse('chat list', response.data);
   return response.data.data;
 }
 
 export async function getStoryChatRoom(scenarioId: number, messageLimit = 30): Promise<StoryChatRoomResponse> {
+  const url = `${BASE_URL}/stories/chats/${scenarioId}`;
+  const params = { scenarioId, messageLimit };
+  logStoryRequest('chat room', 'GET', url, params);
   const response = await axios.get<{ data: StoryChatRoomResponse }>(
-    `${BASE_URL}/stories/chats/${scenarioId}`,
+    url,
     { params: { messageLimit }, headers: authHeader() },
   );
+  logStoryResponse('chat room', response.data);
   return response.data.data;
 }

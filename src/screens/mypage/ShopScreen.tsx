@@ -23,6 +23,7 @@ import {
   getShopItems,
   purchaseShopItem,
   ShopItem,
+  consumeShopItem,
 } from '../../services/ShopService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
@@ -36,7 +37,6 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'locked', label: 'Locked' },
   { key: 'special', label: 'Special' },
 ];
-const DEFAULT_PASS_PRESENTATION = PASS_PRESENTATION[0];
 
 function CoinDot({ size = 13 }: { size?: number }) {
   return (
@@ -119,7 +119,7 @@ function CharacterCard({
         {item.owned ? (
           <View style={item.equipped ? s.usingBadge : s.ownedBadge}>
             <Text style={item.equipped ? s.usingBadgeTxt : s.ownedBadgeTxt}>
-              {item.equipped ? 'Equipped' : `Owned ${item.ownedQuantity}`}
+              {item.equipped ? 'Equipped' : 'Owned'}
             </Text>
           </View>
         ) : (
@@ -141,6 +141,7 @@ export function ShopScreen({ navigation }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -156,6 +157,7 @@ export function ShopScreen({ navigation }: Props) {
 
   async function loadShop() {
     setLoading(true);
+    setError('');
     try {
       const [characterList, passList] = await Promise.all([
         getShopItems('character'),
@@ -174,7 +176,9 @@ export function ShopScreen({ navigation }: Props) {
           : equipped?.id ?? nextCharacters[0]?.id ?? null,
       );
     } catch (error: any) {
-      Alert.alert('Shop', error?.response?.data?.detail ?? error?.message ?? 'Failed to load shop.');
+      const message = error?.response?.data?.detail ?? error?.message ?? 'Failed to load shop.';
+      setError(message);
+      Alert.alert('Shop', message);
     } finally {
       setLoading(false);
     }
@@ -227,6 +231,19 @@ export function ShopScreen({ navigation }: Props) {
       showToast(code === 'ITEM_NOT_OWNED'
         ? 'You do not own this item.'
         : error?.response?.data?.detail ?? error?.message ?? 'Equip failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleUse(item: CardItem) {
+    if (actionLoading || item.ownedQuantity <= 0) return;
+    setActionLoading(true);
+    try {
+      const result = await consumeShopItem(item.id);
+      await refreshAfterAction(result.message || `${item.name} used.`);
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail ?? error?.message ?? 'Use failed.');
     } finally {
       setActionLoading(false);
     }
@@ -391,6 +408,7 @@ export function ShopScreen({ navigation }: Props) {
             <Text style={s.passSectionLabel}>Battle and utility items</Text>
             {passes.map(item => {
               const canAfford = gold >= item.priceCurrency;
+              const canUse = item.ownedQuantity > 0;
               return (
                 <View key={item.id} style={s.passCard}>
                   <LinearGradient colors={item.bg} style={s.passIconWrap}>
@@ -403,24 +421,38 @@ export function ShopScreen({ navigation }: Props) {
                       <Text style={s.passEffectTxt}>{item.effect ?? `Owned ${item.ownedQuantity}`}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={s.passBuyBtn}
-                    disabled={actionLoading || !item.purchasable || !canAfford}
-                    onPress={() => handlePurchase(item)}
-                  >
-                    {item.purchasable && canAfford ? (
-                      <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.passBuyGrad}>
-                        <CoinDot size={10} />
-                        <Text style={s.passBuyTxt}>{item.priceCurrency.toLocaleString()}</Text>
-                      </LinearGradient>
-                    ) : (
-                      <View style={s.passBuyDisabled}>
-                        <CoinDot size={10} />
-                        <Text style={s.passBuyTxtDisabled}>{item.priceCurrency.toLocaleString()}</Text>
-                      </View>
+                  <View style={s.passActions}>
+                    {canUse && (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={s.passBuyBtn}
+                        disabled={actionLoading}
+                        onPress={() => handleUse(item)}
+                      >
+                        <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.passUseGrad}>
+                          <Text style={s.passBuyTxt}>사용</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={s.passBuyBtn}
+                      disabled={actionLoading || !item.purchasable || !canAfford}
+                      onPress={() => handlePurchase(item)}
+                    >
+                      {item.purchasable && canAfford ? (
+                        <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.passBuyGrad}>
+                          <CoinDot size={10} />
+                          <Text style={s.passBuyTxt}>{item.priceCurrency.toLocaleString()}</Text>
+                        </LinearGradient>
+                      ) : (
+                        <View style={s.passBuyDisabled}>
+                          <CoinDot size={10} />
+                          <Text style={s.passBuyTxtDisabled}>{item.priceCurrency.toLocaleString()}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })}
@@ -461,7 +493,10 @@ const s = StyleSheet.create({
   filterInactive: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99, backgroundColor: '#fff', borderWidth: 2, borderColor: '#e5e7eb' },
   filterInactiveTxt: { fontSize: 11, fontWeight: '900', color: '#6b7280' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+  emptyEmoji: { fontSize: 28, fontWeight: '900', color: '#f87171', marginBottom: 6 },
   emptyTxt: { fontSize: 13, fontWeight: '700', color: '#d1d5db' },
+  retryBtn: { marginTop: 12, backgroundColor: '#ec4899', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  retryTxt: { fontSize: 12, fontWeight: '900', color: '#fff' },
   grid: { flex: 1 },
   gridContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   gridItem: { flex: 1 / 3, padding: 4 },
@@ -511,8 +546,10 @@ const s = StyleSheet.create({
   passDesc: { fontSize: 11, fontWeight: '600', color: '#6b7280' },
   passEffectBadge: { backgroundColor: '#f9fafb', borderRadius: 99, borderWidth: 1, borderColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   passEffectTxt: { fontSize: 9, fontWeight: '700', color: '#9ca3af' },
+  passActions: { flexShrink: 0, gap: 6 },
   passBuyBtn: { flexShrink: 0, borderRadius: 12, overflow: 'hidden' },
   passBuyGrad: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8 },
+  passUseGrad: { alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   passBuyTxt: { fontSize: 12, fontWeight: '900', color: '#fff' },
   passBuyDisabled: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f3f4f6', borderRadius: 12 },
   passBuyTxtDisabled: { fontSize: 12, fontWeight: '900', color: '#9ca3af' },

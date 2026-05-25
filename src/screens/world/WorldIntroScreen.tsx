@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,12 +14,11 @@ import { BookOpen, ChevronLeft, Sparkles } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { fetchStoryHistory, playStory, StoryPlayResponse } from '../../services/StoryService';
-import { getWorldPreview, WorldPreviewData } from '../../services/HomeService';
+import { getWorldPreview, resolveMediaUrl, WorldPreviewData } from '../../services/HomeService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorldIntro'>;
-
-const INTRO_IMAGE_URL = 'https://i.imgur.com/4iCvAnf.png';
 
 type IntroState = {
   preview: WorldPreviewData | null;
@@ -87,6 +85,7 @@ export function WorldIntroScreen({ navigation, route }: Props) {
   const preview = data.preview;
   const story = data.story;
   const character = firstCharacter(story, preview);
+  const introImageUrl = resolveMediaUrl(preview?.scenario.playerImageUrl);
   const worldTitle = preview?.scenario.title ?? `Scenario ${scenarioId}`;
   const genre = preview?.scenario.genres?.[0] ?? preview?.scenario.genre ?? 'Story';
   const openingSummary =
@@ -122,7 +121,7 @@ export function WorldIntroScreen({ navigation, route }: Props) {
 
           <View style={s.worldCard}>
             <View style={s.worldImgWrap}>
-              <Image source={{ uri: INTRO_IMAGE_URL }} style={s.worldImg} resizeMode="cover" />
+              <ImageWithFallback uri={introImageUrl} style={s.worldImg} resizeMode="cover" />
               <LinearGradient
                 colors={['transparent', 'rgba(255,255,255,0.15)', 'rgba(255,255,255,0.92)']}
                 style={s.worldImgOverlay}

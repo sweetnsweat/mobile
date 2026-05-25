@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swords, Zap, Calendar, Trophy, TrendingUp, Shield } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { BottomNav } from '../../components/BottomNav';
 import { battleModeToDuration, BattleSummary, durationToBattleMode, getBattleSummary } from '../../services/BattleService';
+import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleLobby'>;
 type Duration = '1d' | '7d';
@@ -20,6 +21,11 @@ export function BattleLobbyScreen({ navigation }: Props) {
   async function loadSummary() {
     setLoading(true);
     try {
+      try {
+        await syncHealthDataWithServerIfStale();
+      } catch (e) {
+        console.log('[HealthDataSync] battle lobby skipped:', e instanceof Error ? e.message : e);
+      }
       setSummary(await getBattleSummary());
     } catch (e: any) {
       Alert.alert('배틀', e?.response?.data?.detail ?? e?.message ?? '배틀 요약을 불러오지 못했습니다.');

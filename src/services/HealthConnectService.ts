@@ -10,6 +10,10 @@ import {
   type ReadRecordsResult,
   type RecordType,
 } from 'react-native-health-connect';
+import { Platform } from 'react-native';
+import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
+import { getStoredAuth } from './AuthService';
 
 export const HEALTH_CONNECT_RECORD_TYPES: RecordType[] = [
   'ActiveCaloriesBurned',
@@ -83,6 +87,13 @@ export const QUEST_VERIFICATION_RECORD_TYPES: RecordType[] = [
   'Power',
 ];
 
+export const HEALTH_DATA_SYNC_RECORD_TYPES: RecordType[] = [
+  'Steps',
+  'Distance',
+  'ActiveCaloriesBurned',
+  'ExerciseSession',
+];
+
 export interface HealthConnectReadOptions {
   startTime: string | Date;
   endTime?: string | Date;
@@ -119,6 +130,35 @@ export interface QuestHealthSampleReadResult {
   grantedRecordTypes: RecordType[];
   deniedRecordTypes: RecordType[];
 }
+
+export interface HealthDataSyncRequest {
+  samples: HealthMetricSampleRequest[];
+}
+
+export interface HealthDataSyncResponse {
+  syncedSampleCount?: number;
+  [key: string]: unknown;
+}
+
+export interface HealthDataSyncResult {
+  response: HealthDataSyncResponse | null;
+  sampleCount: number;
+  grantedRecordTypes: RecordType[];
+  deniedRecordTypes: RecordType[];
+  skipped: boolean;
+  reason?: string;
+}
+
+export interface SyncHealthDataOptions {
+  days?: number;
+  force?: boolean;
+  staleMs?: number;
+}
+
+const DEFAULT_SYNC_DAYS = 30;
+const DEFAULT_SYNC_STALE_MS = 30 * 60 * 1000;
+let lastHealthDataSyncAt = 0;
+let healthDataSyncInFlight: Promise<HealthDataSyncResult> | null = null;
 
 function toIsoString(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
@@ -249,6 +289,12 @@ export async function readSamsungHealthSyncedData(
   });
 }
 
+function authHeader(): Record<string, string> {
+  const auth = getStoredAuth();
+  if (!auth?.accessToken) throw new Error('로그인이 필요합니다.');
+  return { Authorization: `Bearer ${auth.accessToken}` };
+}
+
 function recordStartTime(record: any): string | undefined {
   return record?.startTime ?? record?.time;
 }
@@ -281,6 +327,14 @@ function distanceKm(record: any): number | undefined {
     numericValue(record?.distance) ??
     numericValue(record?.value);
   return meters == null ? undefined : Math.round((meters / 1000) * 1000) / 1000;
+}
+
+function distanceMeters(record: any): number | undefined {
+  return (
+    numericValue(record?.distance?.inMeters) ??
+    numericValue(record?.distance) ??
+    numericValue(record?.value)
+  );
 }
 
 function calories(record: any): number | undefined {
@@ -379,6 +433,38 @@ function healthSamplesFromRecord(
   }
 }
 
+function healthDataSyncSamplesFromRecord(
+  recordType: RecordType,
+  record: any,
+): HealthMetricSampleRequest[] {
+  switch (recordType) {
+    case 'ExerciseSession': {
+      const value = durationMinutes(record);
+      const sample = value == null
+        ? null
+        : sampleBase('ExerciseSession', record, value, 'minutes', 'ExerciseSession');
+      return sample ? [sample] : [];
+    }
+    case 'Steps': {
+      const value = numericValue(record?.count);
+      const sample = value == null ? null : sampleBase('Steps', record, value, 'count', 'Steps');
+      return sample ? [sample] : [];
+    }
+    case 'Distance': {
+      const value = distanceMeters(record);
+      const sample = value == null ? null : sampleBase('Distance', record, value, 'm', 'Distance');
+      return sample ? [sample] : [];
+    }
+    case 'ActiveCaloriesBurned': {
+      const value = calories(record);
+      const sample = value == null ? null : sampleBase('ActiveCaloriesBurned', record, value, 'kcal', 'ActiveCaloriesBurned');
+      return sample ? [sample] : [];
+    }
+    default:
+      return [];
+  }
+}
+
 export async function readQuestVerificationHealthSamples(
   startTime: string | Date,
   endTime: string | Date = new Date(),
@@ -398,4 +484,91 @@ export async function readQuestVerificationHealthSamples(
     grantedRecordTypes: result.grantedRecordTypes,
     deniedRecordTypes: result.deniedRecordTypes,
   };
+}
+
+export async function syncHealthDataWithServer(
+  options: SyncHealthDataOptions = {},
+): Promise<HealthDataSyncResult> {
+  if (Platform.OS !== 'android') {
+    return {
+      response: null,
+      sampleCount: 0,
+      grantedRecordTypes: [],
+      deniedRecordTypes: [],
+      skipped: true,
+      reason: 'unsupported_platform',
+    };
+  }
+
+  const now = Date.now();
+  const staleMs = options.staleMs ?? DEFAULT_SYNC_STALE_MS;
+  if (!options.force && lastHealthDataSyncAt > 0 && now - lastHealthDataSyncAt < staleMs) {
+    return {
+      response: null,
+      sampleCount: 0,
+      grantedRecordTypes: [],
+      deniedRecordTypes: [],
+      skipped: true,
+      reason: 'fresh',
+    };
+  }
+
+  if (healthDataSyncInFlight) return healthDataSyncInFlight;
+
+  healthDataSyncInFlight = (async () => {
+    const endTime = new Date();
+    const startTime = new Date(endTime);
+    startTime.setDate(startTime.getDate() - (options.days ?? DEFAULT_SYNC_DAYS));
+
+    const result = await readAllHealthConnectData({
+      startTime,
+      endTime,
+      recordTypes: HEALTH_DATA_SYNC_RECORD_TYPES,
+    });
+
+    const samples = result.results
+      .flatMap(item =>
+        item.records.flatMap(record => healthDataSyncSamplesFromRecord(item.recordType, record)),
+      )
+      .filter(sample => Number.isFinite(sample.value));
+
+    if (samples.length === 0) {
+      lastHealthDataSyncAt = Date.now();
+      return {
+        response: null,
+        sampleCount: 0,
+        grantedRecordTypes: result.grantedRecordTypes,
+        deniedRecordTypes: result.deniedRecordTypes,
+        skipped: true,
+        reason: 'no_samples',
+      };
+    }
+
+    const res = await axios.post<{ data: HealthDataSyncResponse }>(
+      `${API_BASE_URL}/health-data/sync`,
+      { samples } satisfies HealthDataSyncRequest,
+      { headers: authHeader() },
+    );
+
+    lastHealthDataSyncAt = Date.now();
+    return {
+      response: res.data.data,
+      sampleCount: samples.length,
+      grantedRecordTypes: result.grantedRecordTypes,
+      deniedRecordTypes: result.deniedRecordTypes,
+      skipped: false,
+    };
+  })();
+
+  try {
+    return await healthDataSyncInFlight;
+  } finally {
+    healthDataSyncInFlight = null;
+  }
+}
+
+export async function syncHealthDataWithServerIfStale(
+  options: Omit<SyncHealthDataOptions, 'force'> = {},
+): Promise<HealthDataSyncResult> {
+  return syncHealthDataWithServer({ ...options, force: false });
 }

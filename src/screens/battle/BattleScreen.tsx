@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { battleModeToDuration, BattleDetail, BattleMetric, getBattleDetail } from '../../services/BattleService';
 import { getMyProfile, resolveProfileImageUrl } from '../../services/UserService';
+import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Battle'>;
 
@@ -51,20 +52,25 @@ export function BattleScreen({ route, navigation }: Props) {
   const [myProfileImageUrl, setMyProfileImageUrl] = useState('');
   const [loading, setLoading] = useState(true);
 
-  async function loadBattle() {
+  const loadBattle = useCallback(async () => {
     setLoading(true);
     try {
+      try {
+        await syncHealthDataWithServerIfStale();
+      } catch (e) {
+        console.log('[HealthDataSync] battle detail skipped:', e instanceof Error ? e.message : e);
+      }
       setBattle(await getBattleDetail(battleId));
     } catch (e: any) {
       Alert.alert('배틀', e?.response?.data?.detail ?? e?.message ?? '배틀 정보를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [battleId]);
 
   useEffect(() => {
     loadBattle();
-  }, [battleId]);
+  }, [loadBattle]);
 
   useEffect(() => {
     let isActive = true;

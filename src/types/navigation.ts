@@ -18,7 +18,7 @@ export type RootStackParamList = {
   Auth: undefined;
   Onboarding: undefined;
   RoutineSetup: { todayConditionCompleted: boolean; hideSkip?: boolean };
-  RoutineCreate: undefined;
+  RoutineCreate: { routineId?: number } | undefined;
   Home: undefined;
   Condition: undefined;
   Statistics: undefined;
@@ -40,4 +40,6 @@ export type RootStackParamList = {
   StoryChatList: undefined;
   AccountRecovery: { initialTab?: 'id' | 'password' } | undefined;
   EditProfile: undefined;
+  ChangePassword: undefined;
+  BadgeList: undefined;
 };

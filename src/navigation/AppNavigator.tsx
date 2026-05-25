@@ -31,6 +31,8 @@ import { ActivityRankingDetailScreen } from '../screens/ActivityRankingDetailScr
 import { StoryChatListScreen } from '../screens/story/StoryChatListScreen';
 import { AccountRecoveryScreen } from '../screens/auth/AccountRecoveryScreen';
 import { EditProfileScreen } from '../screens/mypage/EditProfileScreen';
+import { ChangePasswordScreen } from '../screens/mypage/ChangePasswordScreen';
+import { BadgeListScreen } from '../screens/mypage/BadgeListScreen';
 import { flushPendingNavigation, navigationRef } from './NavigationService';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -69,6 +71,8 @@ export function AppNavigator() {
           <Stack.Screen name="StoryChatList" component={StoryChatListScreen} />
           <Stack.Screen name="AccountRecovery" component={AccountRecoveryScreen} />
           <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+          <Stack.Screen name="BadgeList" component={BadgeListScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
