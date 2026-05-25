@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL, API_ORIGIN } from '../config/api';
+import { AI_MEDIA_ORIGIN, API_BASE_URL, API_ORIGIN } from '../config/api';
 import { getStoredAuth } from './AuthService';
 
 const BASE_URL = `${API_BASE_URL}/users`;
@@ -81,6 +81,7 @@ function authHeader(): Record<string, string> {
 export function resolveProfileImageUrl(url?: string | null): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/media/assets/')) return `${AI_MEDIA_ORIGIN}${url}`;
   return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
 }
 

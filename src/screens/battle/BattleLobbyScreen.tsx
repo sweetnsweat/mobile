@@ -43,6 +43,10 @@ export function BattleLobbyScreen({ navigation }: Props) {
     durationToBattleMode(duration) === 'DAILY'
       ? summary?.currentDailyBattle
       : summary?.currentWeeklyBattle;
+  const totalBattles = (summary?.wins ?? 0) + (summary?.losses ?? 0) + (summary?.draws ?? 0);
+  const rankSubText = totalBattles === 0
+    ? '첫 배틀을 시작해보세요.'
+    : `${totalBattles}전 ${summary?.wins ?? 0}승 ${summary?.losses ?? 0}패 ${summary?.draws ?? 0}무 · 승률 ${summary?.winRate ?? 0}%`;
 
   function handleBattlePress() {
     if (selectedBattle) {
@@ -87,7 +91,7 @@ export function BattleLobbyScreen({ navigation }: Props) {
               <View style={s.rankInfo}>
                 <Text style={s.rankLabel}>나의 배틀 랭크</Text>
                 <Text style={s.rankName}>{summary?.rankName ?? 'Unranked'}</Text>
-                <Text style={s.rankSub}>첫 배틀을 시작해보세요.</Text>
+                <Text style={s.rankSub}>{rankSubText}</Text>
               </View>
             </View>
 
