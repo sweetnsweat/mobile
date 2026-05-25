@@ -112,7 +112,7 @@ export async function completeQuest(
   const res = await axios.patch<{ data: QuestResponse }>(
     url,
     request,
-    { headers: authHeader() },
+    { headers: { 'Content-Type': 'application/json', ...authHeader() } },
   );
   logQuestResponse('complete quest', res.data);
   return res.data.data;

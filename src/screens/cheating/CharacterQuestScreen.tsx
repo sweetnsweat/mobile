@@ -116,6 +116,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const inputRef = useRef<TextInput>(null);
   const initialScrollPendingRef = useRef(false);
   const initialScrollTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const inputFocusTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
   const scrollContentHeightRef = useRef(0);
   const scrollViewHeightRef = useRef(0);
 
@@ -129,6 +130,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     return () => {
       initialScrollTimerRefs.current.forEach(clearTimeout);
       initialScrollTimerRefs.current = [];
+      inputFocusTimerRefs.current.forEach(clearTimeout);
+      inputFocusTimerRefs.current = [];
     };
   }, []);
 
@@ -506,17 +509,30 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
   function focusMessageInput() {
     if (!showTextInput || sending) return;
-    requestAnimationFrame(() => inputRef.current?.focus());
+    inputRef.current?.focus();
   }
 
   useEffect(() => {
     if (!showTextInput || sending || loading || messages.length === 0) return;
 
-    const timer = setTimeout(() => {
-      inputRef.current?.focus();
-    }, 250);
+    inputFocusTimerRefs.current.forEach(clearTimeout);
+    inputFocusTimerRefs.current = [];
 
-    return () => clearTimeout(timer);
+    const focusInput = () => {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+
+    InteractionManager.runAfterInteractions(focusInput);
+
+    [80, 250, 600].forEach(delay => {
+      const timer = setTimeout(focusInput, delay);
+      inputFocusTimerRefs.current.push(timer);
+    });
+
+    return () => {
+      inputFocusTimerRefs.current.forEach(clearTimeout);
+      inputFocusTimerRefs.current = [];
+    };
   }, [showTextInput, sending, loading, messages.length]);
 
   // ── 렌더 ─────────────────────────────────────────────────────────────────
@@ -654,6 +670,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
                   style={s.textInput}
                   onSubmitEditing={handleSend}
                   returnKeyType="send"
+                  blurOnSubmit={false}
                   editable={!sending}
                   showSoftInputOnFocus
                   autoCapitalize="sentences"
