@@ -23,7 +23,6 @@ import {
   getShopItems,
   purchaseShopItem,
   ShopItem,
-  consumeShopItem,
 } from '../../services/ShopService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
@@ -236,19 +235,6 @@ export function ShopScreen({ navigation }: Props) {
     }
   }
 
-  async function handleUse(item: CardItem) {
-    if (actionLoading || item.ownedQuantity <= 0) return;
-    setActionLoading(true);
-    try {
-      const result = await consumeShopItem(item.id);
-      await refreshAfterAction(result.message || `${item.name} used.`);
-    } catch (error: any) {
-      showToast(error?.response?.data?.detail ?? error?.message ?? 'Use failed.');
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
   function selectedButtonLabel() {
     if (!selectedItem) return '';
     if (selectedItem.equipped) return '장착중';
@@ -408,7 +394,6 @@ export function ShopScreen({ navigation }: Props) {
             <Text style={s.passSectionLabel}>배틀 및 편의 아이템</Text>
             {passes.map(item => {
               const canAfford = gold >= item.priceCurrency;
-              const canUse = item.ownedQuantity > 0;
               return (
                 <View key={item.id} style={s.passCard}>
                   <LinearGradient colors={item.bg} style={s.passIconWrap}>
@@ -417,23 +402,20 @@ export function ShopScreen({ navigation }: Props) {
                   <View style={s.passInfo}>
                     <Text style={s.passName}>{item.name}</Text>
                     <Text style={s.passDesc}>{item.description ?? ''}</Text>
-                    <View style={s.passEffectBadge}>
-                      <Text style={s.passEffectTxt}>{item.effect ?? `보유 ${item.ownedQuantity}`}</Text>
+                    <View style={s.passBadgeRow}>
+                      {item.effect && (
+                        <View style={s.passEffectBadge}>
+                          <Text style={s.passEffectTxt}>{item.effect}</Text>
+                        </View>
+                      )}
+                      <View style={item.ownedQuantity > 0 ? s.passOwnedBadge : s.passOwnedBadgeEmpty}>
+                        <Text style={item.ownedQuantity > 0 ? s.passOwnedTxt : s.passOwnedTxtEmpty}>
+                          보유 {item.ownedQuantity}개
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   <View style={s.passActions}>
-                    {canUse && (
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        style={s.passBuyBtn}
-                        disabled={actionLoading}
-                        onPress={() => handleUse(item)}
-                      >
-                        <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.passUseGrad}>
-                          <Text style={s.passBuyTxt}>사용</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    )}
                     <TouchableOpacity
                       activeOpacity={0.85}
                       style={s.passBuyBtn}
@@ -544,12 +526,16 @@ const s = StyleSheet.create({
   passInfo: { flex: 1, gap: 3 },
   passName: { fontSize: 14, fontWeight: '900', color: '#111827' },
   passDesc: { fontSize: 11, fontWeight: '600', color: '#6b7280' },
+  passBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 },
   passEffectBadge: { backgroundColor: '#f9fafb', borderRadius: 99, borderWidth: 1, borderColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   passEffectTxt: { fontSize: 9, fontWeight: '700', color: '#9ca3af' },
+  passOwnedBadge: { backgroundColor: '#ecfdf5', borderRadius: 99, borderWidth: 1, borderColor: '#a7f3d0', paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
+  passOwnedBadgeEmpty: { backgroundColor: '#f3f4f6', borderRadius: 99, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
+  passOwnedTxt: { fontSize: 9, fontWeight: '800', color: '#059669' },
+  passOwnedTxtEmpty: { fontSize: 9, fontWeight: '800', color: '#9ca3af' },
   passActions: { flexShrink: 0, gap: 6 },
   passBuyBtn: { flexShrink: 0, borderRadius: 12, overflow: 'hidden' },
   passBuyGrad: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8 },
-  passUseGrad: { alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   passBuyTxt: { fontSize: 12, fontWeight: '900', color: '#fff' },
   passBuyDisabled: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f3f4f6', borderRadius: 12 },
   passBuyTxtDisabled: { fontSize: 12, fontWeight: '900', color: '#9ca3af' },
