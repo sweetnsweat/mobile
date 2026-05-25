@@ -17,7 +17,7 @@ export function ImageWithFallback({ uri, style, resizeMode = 'cover' }: Props) {
   return (
     <Image
       source={{ uri }}
-      style={style}
+      style={[{ backgroundColor: '#f3f4f6', objectPosition: 'center 35%' } as any, style as any]}
       resizeMode={resizeMode}
       onError={() => setError(true)}
     />
