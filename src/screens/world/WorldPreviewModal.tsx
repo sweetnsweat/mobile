@@ -28,13 +28,16 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
   const [data, setData] = useState<WorldPreviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedChar, setSelectedChar] = useState<WorldPreviewData['representativeCharacter']>(null);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   useEffect(() => {
     if (scenarioId == null) {
       setData(null);
       setSelectedChar(null);
+      setSummaryExpanded(false);
       return;
     }
+    setSummaryExpanded(false);
     setLoading(true);
     getWorldPreview(scenarioId)
       .then(d => { setData(d); setSelectedChar(d.representativeCharacter); })
@@ -56,7 +59,7 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
           {/* Hero image */}
           <View style={s.hero}>
             {heroImg ? (
-              <Image source={{ uri: heroImg }} style={s.heroImg} resizeMode="cover" />
+              <Image source={{ uri: heroImg }} style={[s.heroImg, { objectPosition: 'center 35%' } as any]} resizeMode="cover" />
             ) : (
               <View style={[s.heroImg, s.heroPlaceholder]} />
             )}
@@ -104,7 +107,18 @@ export function WorldPreviewModal({ scenarioId, onClose, onEnter }: Props) {
               <>
                 {/* Summary */}
                 {data.scenario.summary ? (
-                  <Text style={s.summary} numberOfLines={4}>{data.scenario.summary}</Text>
+                  <View style={s.summaryBox}>
+                    <Text style={s.summary} numberOfLines={summaryExpanded ? undefined : 4}>
+                      {data.scenario.summary}
+                    </Text>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setSummaryExpanded(prev => !prev)}
+                      style={s.summaryMoreBtn}
+                    >
+                      <Text style={s.summaryMoreTxt}>{summaryExpanded ? '접기' : '전체보기 >'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
 
                 {/* Selected character detail */}
@@ -309,7 +323,10 @@ const s = StyleSheet.create({
   loadingWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 24 },
   loadingTxt: { fontSize: 12, fontWeight: '700', color: '#9ca3af' },
 
+  summaryBox: { gap: 6 },
   summary: { fontSize: 13, fontWeight: '500', color: '#4b5563', lineHeight: 20 },
+  summaryMoreBtn: { alignSelf: 'flex-end', borderRadius: 99, backgroundColor: '#fdf2f8', borderWidth: 1, borderColor: '#fbcfe8', paddingHorizontal: 10, paddingVertical: 4 },
+  summaryMoreTxt: { fontSize: 11, fontWeight: '800', color: '#ec4899' },
 
   divider: { height: 1, backgroundColor: '#f3f4f6' },
 

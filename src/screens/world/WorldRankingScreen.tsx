@@ -17,7 +17,7 @@ import { WorldPreviewModal } from './WorldPreviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorldRanking'>;
 
-const GENRES = ['전체','로맨스','판타지','무협','학원물','현대'];
+const GENRES = ['전체','로맨스','판타지','무협','학원물','코미디'];
 
 const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const RANK_COLORS: Record<number, [string, string]> = {
@@ -35,7 +35,7 @@ type WorldRankCard = {
   img: string;
   colors: [string, string];
   tags: string[];
-  genre: string;
+  genres: string[];
   emoji: string;
 };
 
@@ -45,15 +45,26 @@ function normalizeGenre(genre?: string | null): string {
   if (genre.includes('판타지')) return '판타지';
   if (genre.includes('무협')) return '무협';
   if (genre.includes('학원')) return '학원물';
-  if (genre.includes('현대')) return '현대';
+  if (genre.includes('코미디') || genre.includes('개그')) return '코미디';
   return genre;
+}
+
+function readGenres(item: WorldRankingDetailItem): string[] {
+  const source = item.genres?.length
+    ? item.genres
+    : (item.genre ?? '')
+        .split(/[,\n/|·]+/)
+        .map(g => g.trim())
+        .filter(Boolean);
+  const normalized = source.map(normalizeGenre).filter(Boolean);
+  return Array.from(new Set(normalized.length ? normalized : ['세계관']));
 }
 
 function mapWorldRank(item: WorldRankingDetailItem): WorldRankCard {
   const rc = item.representativeCharacter;
   const displayName = item.displayName || rc?.name;
   const title = rc?.title || item.worldTitle;
-  const genre = normalizeGenre(item.genre);
+  const genres = readGenres(item);
   const tags = rc?.tags?.length ? rc.tags : [];
 
   return {
@@ -64,8 +75,8 @@ function mapWorldRank(item: WorldRankingDetailItem): WorldRankCard {
     score: item.score,
     img: resolveMediaUrl(item.imageUrl),
     colors: RANK_COLORS[item.rank] ?? ['#7dd3fc','#60a5fa'],
-    tags: tags.length ? tags : [`#${genre}`, `#${item.worldTitle}`],
-    genre,
+    tags: tags.length ? tags : [`#${genres[0]}`, `#${item.worldTitle}`],
+    genres,
     emoji: '✨',
   };
 }
@@ -97,11 +108,11 @@ export function WorldRankingScreen({ navigation }: Props) {
 
   const normalizedSearch = search.trim().toLowerCase();
   const filtered = ranking.filter(r => {
-    const matchGenre = genre === '전체' || r.genre === genre;
+    const matchGenre = genre === '전체' || r.genres.includes(genre);
     const matchSearch = !normalizedSearch || (
       r.name.toLowerCase().includes(normalizedSearch) ||
       r.title.toLowerCase().includes(normalizedSearch) ||
-      r.genre.toLowerCase().includes(normalizedSearch) ||
+      r.genres.some(g => g.toLowerCase().includes(normalizedSearch)) ||
       r.tags.some(tag => tag.toLowerCase().includes(normalizedSearch))
     );
     return matchGenre && matchSearch;
@@ -274,9 +285,11 @@ export function WorldRankingScreen({ navigation }: Props) {
                       </View>
                     </View>
                     <View style={s.cardTagRow}>
-                      <View style={s.cardGenreBadge}>
-                        <Text style={s.cardGenreTxt}>{r.genre}</Text>
-                      </View>
+                      {r.genres.map(g => (
+                        <View key={`${r.rank}-${g}`} style={s.cardGenreBadge}>
+                          <Text style={s.cardGenreTxt}>{g}</Text>
+                        </View>
+                      ))}
                       {r.tags.slice(0, 1).map(tag => (
                         <View key={tag} style={s.cardTagBadge}>
                           <Text style={s.cardTagTxt}>{tag}</Text>
