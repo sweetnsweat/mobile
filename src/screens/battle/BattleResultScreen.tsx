@@ -202,13 +202,6 @@ export function BattleResultScreen({ route, navigation }: Props) {
             <View style={s.btnRow}>
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={s.secondaryBtn}
-                onPress={() => navigation.navigate('Home')}
-              >
-                <Text style={s.secondaryBtnTxt}>홈</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.85}
                 style={s.ctaWrap}
                 onPress={() => navigation.navigate('BattleLobby')}
               >
@@ -265,10 +258,8 @@ const s = StyleSheet.create({
   barFill: { height: '100%', borderRadius: 99 },
   opStatVal: { fontSize: 11, fontWeight: '700', color: '#0ea5e9', width: 46 },
   statLabel: { fontSize: 10, fontWeight: '700', color: '#9ca3af', textAlign: 'center', letterSpacing: 0.5, textTransform: 'uppercase' },
-  btnRow: { flexDirection: 'row', gap: 10 },
-  secondaryBtn: { flex: 1, borderRadius: 14, borderWidth: 1.5, borderColor: '#e5e7eb', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingVertical: 15 },
-  secondaryBtnTxt: { fontSize: 14, fontWeight: '900', color: '#6b7280' },
-  ctaWrap: { flex: 2, borderRadius: 14, overflow: 'hidden', shadowColor: '#ec4899', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6 },
+  btnRow: { flexDirection: 'row', justifyContent: 'center' },
+  ctaWrap: { width: '72%', maxWidth: 280, borderRadius: 14, overflow: 'hidden', shadowColor: '#ec4899', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6 },
   cta: { paddingVertical: 15, alignItems: 'center' },
   ctaTxt: { color: '#fff', fontWeight: '900', fontSize: 15 },
 });
