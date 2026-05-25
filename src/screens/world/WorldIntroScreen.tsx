@@ -142,7 +142,9 @@ export function WorldIntroScreen({ navigation, route }: Props) {
               <View style={s.worldNameRow}>
                 <Text style={s.worldName} numberOfLines={2}>{worldTitle}</Text>
                 <View style={s.roleBadge}>
-                  <Text style={s.roleBadgeTxt}>{genre}</Text>
+                  <Text style={s.roleBadgeTxt} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    {genre}
+                  </Text>
                 </View>
               </View>
 
@@ -215,8 +217,8 @@ const s = StyleSheet.create({
   worldInfo: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, gap: 12 },
   worldNameRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   worldName: { flex: 1, fontSize: 18, fontWeight: '900', color: '#111827' },
-  roleBadge: { backgroundColor: '#f0f9ff', borderWidth: 1, borderColor: '#bae6fd', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4, maxWidth: 120, alignItems: 'center' },
-  roleBadgeTxt: { fontSize: 10, fontWeight: '700', color: '#0ea5e9', textAlign: 'center' },
+  roleBadge: { backgroundColor: '#f0f9ff', borderWidth: 1, borderColor: '#bae6fd', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4, width: 120, alignItems: 'center' },
+  roleBadgeTxt: { width: '100%', fontSize: 10, fontWeight: '700', color: '#0ea5e9', textAlign: 'center' },
   worldDesc: { fontSize: 12, color: '#6b7280', lineHeight: 19 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   loadingText: { fontSize: 12, fontWeight: '700', color: '#9ca3af' },

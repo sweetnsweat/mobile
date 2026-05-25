@@ -1157,12 +1157,12 @@ chatScroll: { flex: 1 },
   narrationTxt: { fontSize: 14, color: '#4b5563', fontStyle: 'italic', textAlign: 'center', lineHeight: 22 },
 
   // 선택지 (Screen2 primary / secondary / tertiary 계층)
-  choiceArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#e5e7eb', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 8 },
-  choiceWrap: { borderRadius: 12, overflow: 'hidden' },
-  choiceDefault: { paddingVertical: 13, backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'center', paddingHorizontal: 16 },
-  choiceDefaultTxt: { fontSize: 14, fontWeight: '600', color: '#1f2937', textAlign: 'center' },
-  choiceSelected: { paddingVertical: 16, paddingHorizontal: 16, alignItems: 'center', borderRadius: 12 },
-  choiceSelectedTxt: { color: '#fff', fontWeight: '800', fontSize: 15, textAlign: 'center' },
+  choiceArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#e5e7eb', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16, gap: 8, alignItems: 'center' },
+  choiceWrap: { width: '92%', maxWidth: 360, borderRadius: 12, overflow: 'hidden' },
+  choiceDefault: { paddingVertical: 13, backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'flex-start', paddingHorizontal: 16 },
+  choiceDefaultTxt: { width: '100%', fontSize: 14, fontWeight: '600', color: '#1f2937', textAlign: 'left' },
+  choiceSelected: { paddingVertical: 16, paddingHorizontal: 16, alignItems: 'flex-start', borderRadius: 12 },
+  choiceSelectedTxt: { width: '100%', color: '#fff', fontWeight: '800', fontSize: 15, textAlign: 'left' },
 
   // 다음 챕터
   nextChapterArea: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14, alignItems: 'center', gap: 8 },

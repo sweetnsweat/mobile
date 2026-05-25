@@ -142,6 +142,7 @@ export function ShopScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [purchaseTarget, setPurchaseTarget] = useState<CardItem | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
@@ -217,6 +218,27 @@ export function ShopScreen({ navigation }: Props) {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  function confirmPurchase(item: CardItem) {
+    if (actionLoading || !item.purchasable) return;
+    if (gold < item.priceCurrency) {
+      showToast('골드가 부족해요.');
+      return;
+    }
+    setPurchaseTarget(item);
+  }
+
+  function closePurchaseConfirm() {
+    if (actionLoading) return;
+    setPurchaseTarget(null);
+  }
+
+  async function handleConfirmPurchase() {
+    if (!purchaseTarget || actionLoading) return;
+    const item = purchaseTarget;
+    setPurchaseTarget(null);
+    await handlePurchase(item);
   }
 
   async function handleEquip(item: CardItem) {
@@ -367,7 +389,7 @@ export function ShopScreen({ navigation }: Props) {
                   )}
                 </View>
                 <TouchableOpacity
-                  onPress={() => selectedItem.owned ? handleEquip(selectedItem) : handlePurchase(selectedItem)}
+                  onPress={() => selectedItem.owned ? handleEquip(selectedItem) : confirmPurchase(selectedItem)}
                   disabled={actionLoading || selectedItem.equipped || (!selectedItem.owned && (!canBuySelected || gold < selectedItem.priceCurrency))}
                   activeOpacity={0.85}
                   style={s.actionBtnWrap}
@@ -394,8 +416,15 @@ export function ShopScreen({ navigation }: Props) {
             <Text style={s.passSectionLabel}>배틀 및 편의 아이템</Text>
             {passes.map(item => {
               const canAfford = gold >= item.priceCurrency;
+              const canPurchase = item.purchasable && canAfford;
               return (
-                <View key={item.id} style={s.passCard}>
+                <TouchableOpacity
+                  key={item.id}
+                  activeOpacity={0.86}
+                  disabled={actionLoading || !canPurchase}
+                  onPress={() => confirmPurchase(item)}
+                  style={[s.passCard, !canPurchase && s.passCardDisabled]}
+                >
                   <LinearGradient colors={item.bg} style={s.passIconWrap}>
                     <PassIcon item={item} />
                   </LinearGradient>
@@ -419,10 +448,10 @@ export function ShopScreen({ navigation }: Props) {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       style={s.passBuyBtn}
-                      disabled={actionLoading || !item.purchasable || !canAfford}
-                      onPress={() => handlePurchase(item)}
+                      disabled={actionLoading || !canPurchase}
+                      onPress={() => confirmPurchase(item)}
                     >
-                      {item.purchasable && canAfford ? (
+                      {canPurchase ? (
                         <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.passBuyGrad}>
                           <CoinDot size={10} />
                           <Text style={s.passBuyTxt}>{item.priceCurrency.toLocaleString()}</Text>
@@ -435,11 +464,60 @@ export function ShopScreen({ navigation }: Props) {
                       )}
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
             <View style={{ height: 16 }} />
           </ScrollView>
+        )}
+
+        {purchaseTarget && (
+          <View style={s.confirmOverlay}>
+            <TouchableOpacity activeOpacity={1} style={s.confirmBackdrop} onPress={closePurchaseConfirm} />
+            <View style={s.confirmSheet}>
+              <View style={s.confirmHeader}>
+                <LinearGradient colors={purchaseTarget.bg} style={s.confirmIconWrap}>
+                  {purchaseTarget.category === 'character' && purchaseTarget.imageUrl ? (
+                    <ImageWithFallback uri={purchaseTarget.imageUrl} style={s.confirmImage} />
+                  ) : (
+                    <PassIcon item={purchaseTarget} />
+                  )}
+                </LinearGradient>
+                <View style={s.confirmTitleWrap}>
+                  <Text style={s.confirmEyebrow}>PURCHASE</Text>
+                  <Text style={s.confirmTitle} numberOfLines={1}>{purchaseTarget.name}</Text>
+                  <Text style={s.confirmDesc} numberOfLines={2}>{purchaseTarget.description ?? purchaseTarget.effect ?? '아이템을 구매할까요?'}</Text>
+                </View>
+              </View>
+
+              <View style={s.confirmCostRow}>
+                <Text style={s.confirmCostLabel}>구매 가격</Text>
+                <View style={s.confirmCostBadge}>
+                  <CoinDot size={12} />
+                  <Text style={s.confirmCostTxt}>{purchaseTarget.priceCurrency.toLocaleString()}</Text>
+                </View>
+              </View>
+              <View style={s.confirmCostRow}>
+                <Text style={s.confirmCostLabel}>보유 골드</Text>
+                <Text style={s.confirmBalanceTxt}>{gold.toLocaleString()}</Text>
+              </View>
+
+              <View style={s.confirmActions}>
+                <TouchableOpacity activeOpacity={0.85} style={s.confirmCancelBtn} onPress={closePurchaseConfirm} disabled={actionLoading}>
+                  <Text style={s.confirmCancelTxt}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.85} style={s.confirmBuyBtnWrap} onPress={handleConfirmPurchase} disabled={actionLoading}>
+                  <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.confirmBuyBtn}>
+                    {actionLoading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={s.confirmBuyTxt}>구매하기</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
 
         {toast && (
@@ -522,6 +600,7 @@ const s = StyleSheet.create({
   passContent: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
   passSectionLabel: { fontSize: 11, fontWeight: '700', color: '#9ca3af', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
   passCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  passCardDisabled: { opacity: 0.65 },
   passIconWrap: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   passInfo: { flex: 1, gap: 3 },
   passName: { fontSize: 14, fontWeight: '900', color: '#111827' },
@@ -539,6 +618,27 @@ const s = StyleSheet.create({
   passBuyTxt: { fontSize: 12, fontWeight: '900', color: '#fff' },
   passBuyDisabled: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f3f4f6', borderRadius: 12 },
   passBuyTxtDisabled: { fontSize: 12, fontWeight: '900', color: '#9ca3af' },
+  confirmOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, zIndex: 20 },
+  confirmBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(17,24,39,0.42)' },
+  confirmSheet: { width: '100%', backgroundColor: '#fff', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#fce7f3', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 12, gap: 14 },
+  confirmHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  confirmIconWrap: { width: 58, height: 58, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: '#fbcfe8' },
+  confirmImage: { width: '100%', height: '100%' },
+  confirmTitleWrap: { flex: 1 },
+  confirmEyebrow: { fontSize: 9, fontWeight: '900', color: '#ec4899', letterSpacing: 2 },
+  confirmTitle: { fontSize: 17, fontWeight: '900', color: '#111827', marginTop: 2 },
+  confirmDesc: { fontSize: 11, fontWeight: '600', color: '#6b7280', marginTop: 3, lineHeight: 16 },
+  confirmCostRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f9fafb', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  confirmCostLabel: { fontSize: 12, fontWeight: '800', color: '#6b7280' },
+  confirmCostBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 },
+  confirmCostTxt: { fontSize: 12, fontWeight: '900', color: '#d97706' },
+  confirmBalanceTxt: { fontSize: 12, fontWeight: '900', color: '#111827' },
+  confirmActions: { flexDirection: 'row', gap: 8 },
+  confirmCancelBtn: { flex: 1, height: 42, borderRadius: 14, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' },
+  confirmCancelTxt: { fontSize: 13, fontWeight: '900', color: '#6b7280' },
+  confirmBuyBtnWrap: { flex: 1, borderRadius: 14, overflow: 'hidden' },
+  confirmBuyBtn: { height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  confirmBuyTxt: { fontSize: 13, fontWeight: '900', color: '#fff' },
   toast: { position: 'absolute', bottom: 100, alignSelf: 'center', backgroundColor: 'rgba(17,24,39,0.85)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99 },
   toastTxt: { color: '#fff', fontSize: 11, fontWeight: '900' },
 });
