@@ -25,12 +25,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'StoryChatList'>;
 const STATUS_LABEL: Record<string, string> = {
   IN_PROGRESS: '진행 중',
   COMPLETED: '완료',
+  STORY_COMPLETED: '완료',
   PAUSED: '일시정지',
 };
 
 const STATUS_COLOR: Record<string, string> = {
   IN_PROGRESS: '#ec4899',
   COMPLETED: '#10b981',
+  STORY_COMPLETED: '#10b981',
   PAUSED: '#9ca3af',
 };
 
@@ -120,6 +122,15 @@ export function StoryChatListScreen({ navigation }: Props) {
     setError('');
     try {
       const data = await getStoryChatList(50);
+      console.log('[StoryChatList] chat status summary', data.chats.map(chat => ({
+        progressId: chat.progressId,
+        scenarioId: chat.scenarioId,
+        title: chat.displayName || chat.scenarioTitle,
+        status: chat.status,
+        phase: chat.phase,
+        currentChapterNum: chat.currentChapterNum,
+        lastMessage: chat.lastMessage,
+      })));
       setChats(data.chats);
     } catch (e: any) {
       setError(e?.message ?? '채팅 목록을 불러오지 못했습니다.');
