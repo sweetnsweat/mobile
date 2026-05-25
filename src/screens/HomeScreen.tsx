@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Easing, Dimensions, StatusBar, Image, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -265,18 +265,6 @@ export function HomeScreen({ navigation }: Props) {
           {/* <TouchableOpacity style={s.menuBtn}>
             <Menu size={16} color="#4b5563" strokeWidth={2.5} />
           </TouchableOpacity> */}
-        </View>
-
-        {/* Search bar */}
-        <View style={s.searchWrap}>
-          <View style={s.searchBar}>
-            <Zap size={16} color="#9ca3af" strokeWidth={2.5} />
-            <TextInput
-              placeholder="퀘스트, 캐릭터, 친구 검색..."
-              placeholderTextColor="#d1d5db"
-              style={s.searchInput}
-            />
-          </View>
         </View>
 
         {/* Scroll body */}
