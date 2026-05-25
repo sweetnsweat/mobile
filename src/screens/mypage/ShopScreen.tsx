@@ -104,12 +104,12 @@ function CharacterCard({
         )}
         {selected && !locked && (
           <LinearGradient colors={['#f472b6', '#38bdf8']} style={s.checkBadge}>
-            <Text style={s.checkBadgeTxt}>OK</Text>
+            <Text style={s.checkBadgeTxt}>선택</Text>
           </LinearGradient>
         )}
         {item.special && (
           <LinearGradient colors={['#f472b6', '#c084fc']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.specialBadge}>
-            <Text style={s.specialBadgeTxt}>SPECIAL</Text>
+            <Text style={s.specialBadgeTxt}>스페셜</Text>
           </LinearGradient>
         )}
       </LinearGradient>
@@ -118,7 +118,7 @@ function CharacterCard({
         {item.owned ? (
           <View style={item.equipped ? s.usingBadge : s.ownedBadge}>
             <Text style={item.equipped ? s.usingBadgeTxt : s.ownedBadgeTxt}>
-              {item.equipped ? 'Equipped' : 'Owned'}
+              {item.equipped ? '장착중' : '소유중'}
             </Text>
           </View>
         ) : (
@@ -176,9 +176,9 @@ export function ShopScreen({ navigation }: Props) {
           : equipped?.id ?? nextCharacters[0]?.id ?? null,
       );
     } catch (error: any) {
-      const message = error?.response?.data?.detail ?? error?.message ?? 'Failed to load shop.';
+      const message = error?.response?.data?.detail ?? error?.message ?? '상점 정보를 불러오지 못했습니다.';
       setError(message);
-      Alert.alert('Shop', message);
+      Alert.alert('상점', message);
     } finally {
       setLoading(false);
     }
@@ -250,8 +250,8 @@ export function ShopScreen({ navigation }: Props) {
     } catch (error: any) {
       const code = error?.response?.data?.code;
       showToast(code === 'ITEM_NOT_OWNED'
-        ? 'You do not own this item.'
-        : error?.response?.data?.detail ?? error?.message ?? 'Equip failed.');
+        ? '소유하지 않은 캐릭터입니다.'
+        : error?.response?.data?.detail ?? error?.message ?? '장착에 실패했어요.');
     } finally {
       setActionLoading(false);
     }
@@ -277,7 +277,7 @@ export function ShopScreen({ navigation }: Props) {
             <ChevronLeft size={16} color="#4b5563" strokeWidth={2.5} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
-            <Text style={s.headerSub}>SHOP</Text>
+            <Text style={s.headerSub}>상점</Text>
             <Text style={s.headerTitle}>상점</Text>
           </View>
           <View style={s.goldBadge}>
@@ -484,7 +484,7 @@ export function ShopScreen({ navigation }: Props) {
                   )}
                 </LinearGradient>
                 <View style={s.confirmTitleWrap}>
-                  <Text style={s.confirmEyebrow}>PURCHASE</Text>
+                  <Text style={s.confirmEyebrow}>구매 확인</Text>
                   <Text style={s.confirmTitle} numberOfLines={1}>{purchaseTarget.name}</Text>
                   <Text style={s.confirmDesc} numberOfLines={2}>{purchaseTarget.description ?? purchaseTarget.effect ?? '아이템을 구매할까요?'}</Text>
                 </View>
