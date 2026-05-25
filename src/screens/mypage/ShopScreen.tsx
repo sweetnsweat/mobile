@@ -32,10 +32,10 @@ type Filter = 'all' | 'owned' | 'locked' | 'special';
 type CardItem = ShopItem & { bg: [string, string] };
 
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'owned', label: 'Owned' },
-  { key: 'locked', label: 'Locked' },
-  { key: 'special', label: 'Special' },
+  { key: 'all', label: '전체' },
+  { key: 'owned', label: '보유' },
+  { key: 'locked', label: '미보유' },
+  { key: 'special', label: '스페셜' },
 ];
 
 function CoinDot({ size = 13 }: { size?: number }) {
@@ -209,12 +209,12 @@ export function ShopScreen({ navigation }: Props) {
     setActionLoading(true);
     try {
       const result = await purchaseShopItem(item.id, { quantity: 1 });
-      await refreshAfterAction(`${item.name} purchased.`, result.balanceCurrency);
+      await refreshAfterAction(`${item.name} 구매 완료`, result.balanceCurrency);
     } catch (error: any) {
       const code = error?.response?.data?.code;
       showToast(code === 'INSUFFICIENT_BALANCE'
-        ? 'Not enough gold.'
-        : error?.response?.data?.detail ?? error?.message ?? 'Purchase failed.');
+        ? '골드가 부족해요'
+        : error?.response?.data?.detail ?? error?.message ?? '구매에 실패했어요');
     } finally {
       setActionLoading(false);
     }
@@ -225,7 +225,7 @@ export function ShopScreen({ navigation }: Props) {
     setActionLoading(true);
     try {
       await equipShopItem(item.id);
-      await refreshAfterAction(`${item.name} equipped.`);
+      await refreshAfterAction(`${item.name} 장착 완료`);
     } catch (error: any) {
       const code = error?.response?.data?.code;
       showToast(code === 'ITEM_NOT_OWNED'
@@ -251,13 +251,13 @@ export function ShopScreen({ navigation }: Props) {
 
   function selectedButtonLabel() {
     if (!selectedItem) return '';
-    if (selectedItem.equipped) return 'Equipped';
-    if (selectedItem.owned) return 'Equip';
-    if (!selectedItem.purchasable) return 'Unavailable';
+    if (selectedItem.equipped) return '장착중';
+    if (selectedItem.owned) return '장착하기';
+    if (!selectedItem.purchasable) return '구매 불가';
     if (gold < selectedItem.priceCurrency) {
-      return `Need ${(selectedItem.priceCurrency - gold).toLocaleString()} more`;
+      return `${(selectedItem.priceCurrency - gold).toLocaleString()} 골드 부족`;
     }
-    return `${selectedItem.priceCurrency.toLocaleString()} gold`;
+    return `${selectedItem.priceCurrency.toLocaleString()} 골드`;
   }
 
   return (
@@ -269,8 +269,8 @@ export function ShopScreen({ navigation }: Props) {
             <ChevronLeft size={16} color="#4b5563" strokeWidth={2.5} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
-            <Text style={s.headerSub}>Shop</Text>
-            <Text style={s.headerTitle}>Store</Text>
+            <Text style={s.headerSub}>SHOP</Text>
+            <Text style={s.headerTitle}>상점</Text>
           </View>
           <View style={s.goldBadge}>
             <CoinDot size={13} />
@@ -288,10 +288,10 @@ export function ShopScreen({ navigation }: Props) {
             >
               {category === tab ? (
                 <LinearGradient colors={['#f472b6', '#38bdf8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.categoryTabGrad}>
-                  <Text style={s.categoryTabTxtActive}>{tab === 'character' ? 'Character' : 'Pass'}</Text>
+                  <Text style={s.categoryTabTxtActive}>{tab === 'character' ? '캐릭터' : '아이템'}</Text>
                 </LinearGradient>
               ) : (
-                <Text style={s.categoryTabTxt}>{tab === 'character' ? 'Character' : 'Pass'}</Text>
+                <Text style={s.categoryTabTxt}>{tab === 'character' ? '캐릭터' : '아이템'}</Text>
               )}
             </TouchableOpacity>
           ))}
@@ -354,7 +354,7 @@ export function ShopScreen({ navigation }: Props) {
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <View style={s.emptyWrap}>
-                  <Text style={s.emptyTxt}>No items.</Text>
+                  <Text style={s.emptyTxt}>아이템이 없어요</Text>
                 </View>
               }
             />
@@ -405,7 +405,7 @@ export function ShopScreen({ navigation }: Props) {
           </>
         ) : (
           <ScrollView style={s.passScroll} contentContainerStyle={s.passContent} showsVerticalScrollIndicator={false}>
-            <Text style={s.passSectionLabel}>Battle and utility items</Text>
+            <Text style={s.passSectionLabel}>배틀 및 편의 아이템</Text>
             {passes.map(item => {
               const canAfford = gold >= item.priceCurrency;
               const canUse = item.ownedQuantity > 0;
@@ -418,7 +418,7 @@ export function ShopScreen({ navigation }: Props) {
                     <Text style={s.passName}>{item.name}</Text>
                     <Text style={s.passDesc}>{item.description ?? ''}</Text>
                     <View style={s.passEffectBadge}>
-                      <Text style={s.passEffectTxt}>{item.effect ?? `Owned ${item.ownedQuantity}`}</Text>
+                      <Text style={s.passEffectTxt}>{item.effect ?? `보유 ${item.ownedQuantity}`}</Text>
                     </View>
                   </View>
                   <View style={s.passActions}>
