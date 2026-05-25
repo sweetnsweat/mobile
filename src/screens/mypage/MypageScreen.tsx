@@ -16,6 +16,7 @@ import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { BottomNav } from '../../components/BottomNav';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { BadgeArtwork } from '../../components/BadgeArtwork';
 import { logout, getStoredAuth, clearStoredAuth } from '../../services/AuthService';
 import {
   deactivateRegisteredFcmToken,
@@ -266,11 +267,7 @@ export function MypageScreen({ navigation }: Props) {
                     end={{ x: 1, y: 1 }}
                     style={s.badgeCircle}
                   >
-                    {b.imageUrl ? (
-                      <ImageWithFallback uri={resolveProfileImageUrl(b.imageUrl)} style={s.badgeImg} />
-                    ) : (
-                      <Text style={s.badgeEmoji}>{b.earned ? '🏆' : '🔒'}</Text>
-                    )}
+                    <BadgeArtwork badgeCode={b.badgeCode} earned={b.earned} size={44} />
                   </LinearGradient>
                   <Text style={[s.badgeLabel, !b.earned && s.badgeLabelLocked]} numberOfLines={2}>{b.name}</Text>
                 </View>

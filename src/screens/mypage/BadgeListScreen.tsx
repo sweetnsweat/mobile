@@ -3,12 +3,12 @@ import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TouchableOp
 import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Lock, Trophy } from 'lucide-react-native';
+import { ChevronLeft, Trophy } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
-import { ImageWithFallback } from '../../components/ImageWithFallback';
-import { getMyBadges, resolveProfileImageUrl, UserBadge } from '../../services/UserService';
+import { BadgeArtwork } from '../../components/BadgeArtwork';
+import { getMyBadges, UserBadge } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BadgeList'>;
 
@@ -80,13 +80,7 @@ export function BadgeListScreen({ navigation }: Props) {
                   end={{ x: 1, y: 1 }}
                   style={s.badgeIcon}
                 >
-                  {badge.imageUrl ? (
-                    <ImageWithFallback uri={resolveProfileImageUrl(badge.imageUrl)} style={s.badgeImg} />
-                  ) : badge.earned ? (
-                    <Trophy size={24} color="#fff" strokeWidth={2.5} />
-                  ) : (
-                    <Lock size={22} color="#9ca3af" strokeWidth={2.5} />
-                  )}
+                  <BadgeArtwork badgeCode={badge.badgeCode} earned={badge.earned} size={52} />
                 </LinearGradient>
 
                 <View style={s.badgeInfo}>
