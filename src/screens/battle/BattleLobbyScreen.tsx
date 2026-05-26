@@ -1,43 +1,118 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Alert } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Swords, Zap, Calendar, Trophy, TrendingUp, Shield } from 'lucide-react-native';
+import { Swords, Zap, Calendar, Trophy, TrendingUp, Shield, ChevronRight, History } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { BottomNav } from '../../components/BottomNav';
-import { battleModeToDuration, BattleSummary, durationToBattleMode, getBattleSummary } from '../../services/BattleService';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import {
+  battleModeToDuration,
+  BattleHistoryItem,
+  BattleResult,
+  BattleSummary,
+  durationToBattleMode,
+  getBattleHistory,
+  getBattleSummary,
+} from '../../services/BattleService';
 import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
+import { resolveProfileImageUrl } from '../../services/UserService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleLobby'>;
 type Duration = '1d' | '7d';
 
+const RESULT_LABEL: Record<BattleResult, string> = {
+  WIN: 'WIN',
+  LOSS: 'LOSS',
+  DRAW: 'DRAW',
+  PENDING: 'PENDING',
+};
+
+const RESULT_COLOR: Record<BattleResult, string> = {
+  WIN: '#ec4899',
+  LOSS: '#9ca3af',
+  DRAW: '#0ea5e9',
+  PENDING: '#f59e0b',
+};
+
+function formatBattleDate(dateText?: string | null): string {
+  if (!dateText) return '';
+  const date = new Date(dateText);
+  if (Number.isNaN(date.getTime())) return dateText;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function modeLabel(mode: BattleHistoryItem['mode']): string {
+  return mode === 'DAILY' ? '1D' : '7D';
+}
+
+function BattleHistoryCard({
+  item,
+  onPress,
+}: {
+  item: BattleHistoryItem;
+  onPress: () => void;
+}) {
+  const resultColor = RESULT_COLOR[item.result] ?? '#9ca3af';
+  const opponentImage = resolveProfileImageUrl(item.opponent?.profileImageUrl);
+  const period = `${formatBattleDate(item.periodStartDate)} - ${formatBattleDate(item.periodEndDate)}`;
+
+  return (
+    <TouchableOpacity activeOpacity={0.86} style={s.historyCard} onPress={onPress}>
+      <View style={s.historyAvatar}>
+        <ImageWithFallback uri={opponentImage} style={s.historyAvatarImg} />
+      </View>
+      <View style={s.historyBody}>
+        <View style={s.historyTitleRow}>
+          <Text style={s.historyTitle} numberOfLines={1}>{item.opponent?.nickname ?? 'Opponent'}</Text>
+          <View style={[s.historyResultBadge, { borderColor: resultColor, backgroundColor: `${resultColor}14` }]}>
+            <Text style={[s.historyResultTxt, { color: resultColor }]}>{RESULT_LABEL[item.result] ?? item.result}</Text>
+          </View>
+        </View>
+        <Text style={s.historyMeta} numberOfLines={1}>{modeLabel(item.mode)} 배틀 · {period}</Text>
+        <Text style={s.historyScore}>{item.myScore} : {item.opponentScore}</Text>
+      </View>
+      <ChevronRight size={16} color="#9ca3af" strokeWidth={2.5} />
+    </TouchableOpacity>
+  );
+}
+
 export function BattleLobbyScreen({ navigation }: Props) {
   const [duration, setDuration] = useState<Duration>('1d');
   const [summary, setSummary] = useState<BattleSummary | null>(null);
+  const [history, setHistory] = useState<BattleHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  async function loadSummary() {
+  const loadLobby = useCallback(async () => {
     setLoading(true);
+    setHistoryLoading(true);
     try {
       try {
         await syncHealthDataWithServerIfStale();
       } catch (e) {
         console.log('[HealthDataSync] battle lobby skipped:', e instanceof Error ? e.message : e);
       }
-      setSummary(await getBattleSummary());
+      const [nextSummary, nextHistory] = await Promise.all([
+        getBattleSummary(),
+        getBattleHistory(0, 5),
+      ]);
+      setSummary(nextSummary);
+      setHistory(nextHistory.battles ?? []);
     } catch (e: any) {
       Alert.alert('배틀', e?.response?.data?.detail ?? e?.message ?? '배틀 요약을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
+      setHistoryLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', loadSummary);
+    const unsubscribe = navigation.addListener('focus', loadLobby);
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, loadLobby]);
 
   const selectedBattle =
     durationToBattleMode(duration) === 'DAILY'
@@ -48,9 +123,11 @@ export function BattleLobbyScreen({ navigation }: Props) {
     ? '첫 배틀을 시작해보세요.'
     : `${totalBattles}전 ${summary?.wins ?? 0}승 ${summary?.losses ?? 0}패 ${summary?.draws ?? 0}무 · 승률 ${summary?.winRate ?? 0}%`;
 
+  const selectedBattleFinalized = selectedBattle?.status === 'FINALIZED';
+
   function handleBattlePress() {
     if (selectedBattle) {
-      navigation.navigate('Battle', {
+      navigation.navigate(selectedBattleFinalized ? 'BattleResult' : 'Battle', {
         battleId: selectedBattle.battleId,
         duration: battleModeToDuration(selectedBattle.mode),
       });
@@ -58,6 +135,13 @@ export function BattleLobbyScreen({ navigation }: Props) {
     }
 
     navigation.navigate('BattleMatching', { duration });
+  }
+
+  function handleHistoryPress(item: BattleHistoryItem) {
+    navigation.navigate('BattleResult', {
+      battleId: item.battleId,
+      duration: battleModeToDuration(item.mode),
+    });
   }
 
   return (
@@ -175,9 +259,35 @@ export function BattleLobbyScreen({ navigation }: Props) {
               style={s.cta}
             >
               <Swords size={18} color="#fff" strokeWidth={2.5} />
-              <Text style={s.ctaTxt}>{selectedBattle ? '이어하기' : '매칭 시작하기'}</Text>
+              <Text style={s.ctaTxt}>{selectedBattleFinalized ? '결과 보기' : selectedBattle ? '이어하기' : '매칭 시작하기'}</Text>
             </LinearGradient>
           </TouchableOpacity>
+          <View style={s.historySection}>
+            <View style={s.historyHeader}>
+              <View style={s.historyHeaderLeft}>
+                <History size={15} color="#ec4899" strokeWidth={2.5} />
+                <Text style={s.historyHeaderTitle}>최근 배틀 기록</Text>
+              </View>
+              {historyLoading && <ActivityIndicator color="#ec4899" size="small" />}
+            </View>
+
+            {history.length > 0 ? (
+              <View style={s.historyList}>
+                {history.map(item => (
+                  <BattleHistoryCard
+                    key={item.battleId}
+                    item={item}
+                    onPress={() => handleHistoryPress(item)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={s.emptyHistoryCard}>
+                <Text style={s.emptyHistoryTitle}>아직 배틀 기록이 없어요</Text>
+                <Text style={s.emptyHistorySub}>완료된 배틀 결과가 여기에 표시됩니다.</Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         <BottomNav active="battle" navigation={navigation} />
@@ -195,7 +305,7 @@ const s = StyleSheet.create({
   topBarIcon: { width: 38, height: 38, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#fbcfe8', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
 
   scroll: { flex: 1 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 16, paddingBottom: 12, gap: 12 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 92, gap: 12 },
 
   sectionLabel: { fontSize: 11, fontWeight: '700', color: '#9ca3af', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 4 },
 
@@ -230,4 +340,23 @@ const s = StyleSheet.create({
   ctaWrap: { borderRadius: 16, overflow: 'hidden', shadowColor: '#ec4899', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6, marginTop: 4 },
   cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   ctaTxt: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: -0.3 },
+
+  historySection: { gap: 10, marginTop: 4 },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  historyHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  historyHeaderTitle: { fontSize: 11, fontWeight: '800', color: '#374151', letterSpacing: 1.4, textTransform: 'uppercase' },
+  historyList: { gap: 8 },
+  historyCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#f3f4f6', paddingHorizontal: 12, paddingVertical: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
+  historyAvatar: { width: 44, height: 44, borderRadius: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: '#e5e7eb', backgroundColor: '#f3f4f6' },
+  historyAvatarImg: { width: '100%', height: '100%' },
+  historyBody: { flex: 1, gap: 2 },
+  historyTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  historyTitle: { flex: 1, fontSize: 13, fontWeight: '900', color: '#111827' },
+  historyResultBadge: { borderRadius: 99, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2 },
+  historyResultTxt: { fontSize: 9, fontWeight: '900' },
+  historyMeta: { fontSize: 10, fontWeight: '700', color: '#9ca3af' },
+  historyScore: { fontSize: 12, fontWeight: '900', color: '#374151' },
+  emptyHistoryCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#f3f4f6', paddingHorizontal: 14, paddingVertical: 16, alignItems: 'center', gap: 4 },
+  emptyHistoryTitle: { fontSize: 13, fontWeight: '900', color: '#374151' },
+  emptyHistorySub: { fontSize: 11, fontWeight: '600', color: '#9ca3af', textAlign: 'center' },
 });
