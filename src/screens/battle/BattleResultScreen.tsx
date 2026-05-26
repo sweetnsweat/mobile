@@ -8,6 +8,7 @@ import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { battleModeToDuration, BattleMetric, BattleResultDetail, getBattleResult } from '../../services/BattleService';
 import { getMyProfile, resolveProfileImageUrl } from '../../services/UserService';
+import { syncHealthDataWithServer } from '../../services/HealthConnectService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleResult'>;
 
@@ -84,6 +85,13 @@ function resultCopy(result: BattleResultDetail | null) {
   };
 }
 
+function formatSyncTime(value?: string | null): string {
+  if (!value) return '기록 반영 대기 중';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '기록 반영 대기 중';
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')} 반영`;
+}
+
 export function BattleResultScreen({ route, navigation }: Props) {
   const { battleId } = route.params;
   const [result, setResult] = useState<BattleResultDetail | null>(null);
@@ -93,6 +101,11 @@ export function BattleResultScreen({ route, navigation }: Props) {
   async function loadResult() {
     setLoading(true);
     try {
+      try {
+        await syncHealthDataWithServer({ force: true });
+      } catch (e) {
+        console.log('[HealthDataSync] battle result force sync skipped:', e instanceof Error ? e.message : e);
+      }
       setResult(await getBattleResult(battleId));
     } catch (e: any) {
       Alert.alert('배틀', e?.response?.data?.detail ?? e?.message ?? '배틀 결과를 불러오지 못했습니다.');
@@ -165,6 +178,7 @@ export function BattleResultScreen({ route, navigation }: Props) {
                   <View style={[s.resultChip, copy.won ? s.chipWin : s.chipLose]}>
                     <Text style={[s.resultChipTxt, { color: copy.won ? '#ec4899' : '#9ca3af' }]}>{result?.myScore ?? 0} pts</Text>
                   </View>
+                  <Text style={s.syncTxt} numberOfLines={1}>{formatSyncTime(me?.latestHealthSyncedAt ?? result?.healthSync?.latestSyncedAt)}</Text>
                 </View>
 
                 <View style={s.vsCol}>
@@ -181,6 +195,7 @@ export function BattleResultScreen({ route, navigation }: Props) {
                   <View style={[s.resultChip, copy.won ? s.chipLose : s.chipWinBlue]}>
                     <Text style={[s.resultChipTxt, { color: copy.won ? '#9ca3af' : '#0ea5e9' }]}>{result?.opponentScore ?? 0} pts</Text>
                   </View>
+                  <Text style={s.syncTxt} numberOfLines={1}>{formatSyncTime(opponent?.latestHealthSyncedAt)}</Text>
                 </View>
               </View>
             </View>
@@ -241,6 +256,7 @@ const s = StyleSheet.create({
   chipLose: { backgroundColor: '#f9fafb', borderColor: '#e5e7eb' },
   chipWinBlue: { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' },
   resultChipTxt: { fontSize: 11, fontWeight: '900' },
+  syncTxt: { maxWidth: 112, fontSize: 9, fontWeight: '700', color: '#9ca3af', textAlign: 'center' },
   vsCol: { alignItems: 'center', gap: 6, paddingHorizontal: 8 },
   divider: { width: 2, height: 36, borderRadius: 99 },
   vsText: { fontSize: 26, fontWeight: '900', color: '#ec4899', lineHeight: 30 },

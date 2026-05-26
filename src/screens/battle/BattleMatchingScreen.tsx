@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { durationToBattleMode, matchBattle } from '../../services/BattleService';
-import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
+import { syncHealthDataWithServer } from '../../services/HealthConnectService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BattleMatching'>;
 
@@ -54,9 +54,9 @@ export function BattleMatchingScreen({ navigation, route }: Props) {
     async function startMatching() {
       try {
         try {
-          await syncHealthDataWithServerIfStale();
+          await syncHealthDataWithServer({ force: true });
         } catch (e) {
-          console.log('[HealthDataSync] battle matching skipped:', e instanceof Error ? e.message : e);
+          console.log('[HealthDataSync] battle matching force sync skipped:', e instanceof Error ? e.message : e);
         }
         const battle = await matchBattle(durationToBattleMode(duration));
         if (cancelled) return;

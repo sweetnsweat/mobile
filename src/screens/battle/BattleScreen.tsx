@@ -9,7 +9,7 @@ import { ImageWithFallback } from '../../components/ImageWithFallback';
 import { ScreenBackground } from '../../components/ScreenBackground';
 import { battleModeToDuration, BattleDetail, BattleMetric, getBattleDetail } from '../../services/BattleService';
 import { getMyProfile, resolveProfileImageUrl } from '../../services/UserService';
-import { syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
+import { syncHealthDataWithServer, syncHealthDataWithServerIfStale } from '../../services/HealthConnectService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Battle'>;
 
@@ -46,6 +46,13 @@ function StatRow({ metric }: { metric: BattleMetric }) {
   );
 }
 
+function formatSyncTime(value?: string | null): string {
+  if (!value) return '기록 반영 대기 중';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '기록 반영 대기 중';
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')} 반영`;
+}
+
 export function BattleScreen({ route, navigation }: Props) {
   const { battleId } = route.params;
   const [battle, setBattle] = useState<BattleDetail | null>(null);
@@ -60,7 +67,17 @@ export function BattleScreen({ route, navigation }: Props) {
       } catch (e) {
         console.log('[HealthDataSync] battle detail skipped:', e instanceof Error ? e.message : e);
       }
-      setBattle(await getBattleDetail(battleId));
+      const detail = await getBattleDetail(battleId);
+      if (detail.healthSync?.recommended) {
+        try {
+          await syncHealthDataWithServer({ force: true });
+          setBattle(await getBattleDetail(battleId));
+          return;
+        } catch (e) {
+          console.log('[HealthDataSync] battle detail force sync skipped:', e instanceof Error ? e.message : e);
+        }
+      }
+      setBattle(detail);
     } catch (e: any) {
       Alert.alert('배틀', e?.response?.data?.detail ?? e?.message ?? '배틀 정보를 불러오지 못했습니다.');
     } finally {
@@ -132,6 +149,7 @@ export function BattleScreen({ route, navigation }: Props) {
                   </View>
                   <Text style={s.fighterName} numberOfLines={1}>{me?.nickname ?? '나'}</Text>
                   <View style={s.myBadge}><Text style={s.myBadgeTxt}>{me?.score ?? battle?.score.myScore ?? 0} pts</Text></View>
+                  <Text style={s.syncTxt} numberOfLines={1}>{formatSyncTime(me?.latestHealthSyncedAt ?? battle?.healthSync?.latestSyncedAt)}</Text>
                 </View>
 
                 <View style={s.vsCol}>
@@ -146,11 +164,17 @@ export function BattleScreen({ route, navigation }: Props) {
                   </View>
                   <Text style={s.fighterName} numberOfLines={1}>{opponent?.nickname ?? '상대'}</Text>
                   <View style={s.opBadge}><Text style={s.opBadgeTxt}>{opponent?.score ?? battle?.score.opponentScore ?? 0} pts</Text></View>
+                  <Text style={s.syncTxt} numberOfLines={1}>{formatSyncTime(opponent?.latestHealthSyncedAt)}</Text>
                 </View>
               </View>
             </View>
 
             <View style={s.statsCard}>
+              {battle?.healthSync?.recommended && (
+                <View style={s.syncNotice}>
+                  <Text style={s.syncNoticeTxt}>최신 운동 기록을 다시 반영했어요.</Text>
+                </View>
+              )}
               <Text style={s.statsTitle}>남은 시간 {remainingTimeText}</Text>
               {(battle?.metrics ?? []).map(metric => (
                 <StatRow key={metric.metricKey} metric={metric} />
@@ -203,10 +227,13 @@ const s = StyleSheet.create({
   myBadgeTxt: { fontSize: 10, fontWeight: '700', color: '#ec4899' },
   opBadge: { backgroundColor: '#f0f9ff', borderWidth: 1, borderColor: '#bae6fd', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 2 },
   opBadgeTxt: { fontSize: 10, fontWeight: '700', color: '#0ea5e9' },
+  syncTxt: { maxWidth: 118, fontSize: 9, fontWeight: '700', color: '#9ca3af', textAlign: 'center' },
   vsCol: { alignItems: 'center', gap: 6, paddingHorizontal: 8 },
   divider: { width: 2, height: 40, borderRadius: 99 },
   vsText: { fontSize: 30, fontWeight: '900', color: '#ec4899', lineHeight: 34 },
   statsCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#f3f4f6', padding: 16, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
+  syncNotice: { backgroundColor: '#f0f9ff', borderRadius: 12, borderWidth: 1, borderColor: '#bae6fd', paddingHorizontal: 12, paddingVertical: 9 },
+  syncNoticeTxt: { fontSize: 11, fontWeight: '800', color: '#0284c7', textAlign: 'center' },
   statsTitle: { fontSize: 11, fontWeight: '700', color: '#9ca3af', letterSpacing: 2, textTransform: 'uppercase' },
   statItem: { gap: 4 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -35,6 +35,16 @@ export interface BattleParticipant {
   me: boolean;
   score: number;
   result: BattleResult;
+  latestHealthSyncedAt: string | null;
+}
+
+export interface BattleHealthSync {
+  required: boolean;
+  recommended: boolean;
+  latestSyncedAt: string | null;
+  windowStart: string;
+  windowEnd: string;
+  staleAfterSeconds: number;
 }
 
 export interface BattleMetric {
@@ -70,6 +80,7 @@ export interface BattleDetail {
     leadingUserId: number | null;
   };
   metrics: BattleMetric[];
+  healthSync: BattleHealthSync;
 }
 
 export interface BattleMatchDetail extends Omit<BattleDetail, 'battleId' | 'status'> {
@@ -96,6 +107,7 @@ export interface BattleResultDetail {
   opponentScore: number;
   participants: BattleParticipant[];
   metrics: BattleMetric[];
+  healthSync: BattleHealthSync;
 }
 
 export interface BattleHistoryItem {
