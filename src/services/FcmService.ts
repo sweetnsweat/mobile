@@ -1,5 +1,12 @@
 import axios from 'axios';
-import messaging from '@react-native-firebase/messaging';
+import {
+  getInitialNotification,
+  getMessaging,
+  getToken,
+  onNotificationOpenedApp,
+  onTokenRefresh,
+  registerDeviceForRemoteMessages,
+} from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { API_BASE_URL } from '../config/api';
 import { getStoredAuth } from './AuthService';
@@ -69,8 +76,9 @@ async function getFcmToken(): Promise<string | null> {
   const granted = await requestAndroidNotificationPermission();
   if (!granted) return null;
 
-  await messaging().registerDeviceForRemoteMessages();
-  return messaging().getToken();
+  const messagingInstance = getMessaging();
+  await registerDeviceForRemoteMessages(messagingInstance);
+  return getToken(messagingInstance);
 }
 
 export async function registerFcmTokenForCurrentUser(tokenOverride?: string): Promise<boolean> {
@@ -123,7 +131,7 @@ export async function deactivateRegisteredFcmToken(accessToken?: string): Promis
 export function subscribeFcmTokenRefresh(): () => void {
   if (Platform.OS !== 'android') return () => {};
 
-  return messaging().onTokenRefresh(token => {
+  return onTokenRefresh(getMessaging(), token => {
     registerFcmTokenForCurrentUser(token);
   });
 }
@@ -176,12 +184,12 @@ export function handlePushNotificationNavigation(data?: PushNotificationData): b
 export function subscribeFcmNotificationNavigationHandlers(): () => void {
   if (Platform.OS !== 'android') return () => {};
 
-  const unsubscribeOpened = messaging().onNotificationOpenedApp(remoteMessage => {
+  const messagingInstance = getMessaging();
+  const unsubscribeOpened = onNotificationOpenedApp(messagingInstance, remoteMessage => {
     handlePushNotificationNavigation(remoteMessage.data as PushNotificationData | undefined);
   });
 
-  messaging()
-    .getInitialNotification()
+  getInitialNotification(messagingInstance)
     .then(remoteMessage => {
       handlePushNotificationNavigation(remoteMessage?.data as PushNotificationData | undefined);
     })

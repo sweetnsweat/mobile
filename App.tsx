@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
-import messaging from '@react-native-firebase/messaging';
+import { getMessaging, onMessage } from '@react-native-firebase/messaging';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import {
   handlePushNotificationNavigation,
@@ -29,9 +29,10 @@ async function displayForegroundNotification(
 
 export default function App() {
   useEffect(() => {
+    const messagingInstance = getMessaging();
     const unsubscribeFcm = subscribeFcmTokenRefresh();
     const unsubscribeNotificationNavigation = subscribeFcmNotificationNavigationHandlers();
-    const unsubscribeMessage = messaging().onMessage(async remoteMessage => {
+    const unsubscribeMessage = onMessage(messagingInstance, async remoteMessage => {
       await displayForegroundNotification(
         remoteMessage.notification?.title,
         remoteMessage.notification?.body,
