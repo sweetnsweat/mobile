@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Animated,
+  StyleSheet, ScrollView, StatusBar, ActivityIndicator, Modal, Pressable, Animated,
   KeyboardAvoidingView, Platform, InteractionManager,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, RotateCcw, Sparkles, Trophy, Star, Flame, Ticket } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Send, RotateCcw, Sparkles, Trophy, Star, Flame, Ticket } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { ImageWithFallback } from '../../components/ImageWithFallback';
@@ -20,6 +20,9 @@ import {
   extractChoices,
   StoryPlayResponse,
   StoryChoice,
+  HistoryItem,
+  StoryChatMessage,
+  StoryChatRoomResponse,
 } from '../../services/StoryService';
 import { completeQuest, getTodayQuest, type CompleteQuestRequest } from '../../services/QuestService';
 import { readQuestVerificationHealthSamples } from '../../services/HealthConnectService';
@@ -38,6 +41,83 @@ function resolveCharacterImage(url?: string): string {
 
 function historyCharacterImage(item: any): string {
   return resolveCharacterImage(item?.character_image_url ?? item?.image_url ?? item?.imageUrl);
+}
+
+function historyItemRole(item: HistoryItem): Role {
+  return item.role === 'assistant'                                                       ? 'character'
+      : item.role === 'choice' || item.role === 'user' || item.role === 'user_message' ? 'user'
+      : item.role === 'narration'                                                      ? 'narration'
+      : 'system';
+}
+
+function historyItemToMessage(item: HistoryItem): ChatMessage {
+  return {
+    id: msgId(),
+    role: historyItemRole(item),
+    text: item.content,
+    speaker: item.character_name ?? undefined,
+    characterImg: historyCharacterImage(item),
+  };
+}
+
+function normalizedText(value?: string | null): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function storyLogMatchesHistoryItem(log: StoryChatMessage, item: HistoryItem): boolean {
+  const content = normalizedText(item.content);
+  if (!content) return false;
+
+  const candidates = [
+    log.userMessage,
+    log.narrationText,
+    log.dialogueText,
+    log.outputText,
+  ].map(normalizedText).filter(Boolean);
+
+  return candidates.some(candidate => candidate === content || candidate.includes(content) || content.includes(candidate));
+}
+
+function splitHistoryMessagesByChapter(history: HistoryItem[], restored: ChatMessage[], logs: StoryChatMessage[]) {
+  if (history.length === 0 || restored.length === 0 || logs.length === 0) {
+    return { previousPages: [] as ChatMessage[][], currentPage: restored };
+  }
+
+  const pages: ChatMessage[][] = [];
+  const chapterIndexes = new Map<number, number>();
+  let searchStart = 0;
+  let lastChapterNum = logs[0]?.chapterNum ?? 1;
+
+  history.forEach((item, index) => {
+    let matchedLogIndex = -1;
+    for (let i = searchStart; i < logs.length; i += 1) {
+      if (storyLogMatchesHistoryItem(logs[i], item)) {
+        matchedLogIndex = i;
+        break;
+      }
+    }
+
+    if (matchedLogIndex >= 0) {
+      searchStart = matchedLogIndex;
+      lastChapterNum = logs[matchedLogIndex].chapterNum ?? lastChapterNum;
+    }
+
+    if (!chapterIndexes.has(lastChapterNum)) {
+      chapterIndexes.set(lastChapterNum, pages.length);
+      pages.push([]);
+    }
+    pages[chapterIndexes.get(lastChapterNum)!].push(restored[index]);
+  });
+
+  const nonEmptyPages = pages.filter(page => page.length > 0);
+  if (nonEmptyPages.length <= 1) {
+    return { previousPages: [] as ChatMessage[][], currentPage: restored };
+  }
+
+  return {
+    previousPages: nonEmptyPages.slice(0, -1),
+    currentPage: nonEmptyPages[nonEmptyPages.length - 1],
+  };
 }
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
@@ -136,6 +216,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const introStarted = route.params?.introStarted ?? false;
 
   const [messages,      setMessages]      = useState<ChatMessage[]>([]);
+  const [previousMessagePages, setPreviousMessagePages] = useState<ChatMessage[][]>([]);
+  const [nextMessagePages, setNextMessagePages] = useState<ChatMessage[][]>([]);
   const [choices,       setChoices]       = useState<StoryChoice[]>([]);
   const [selectedChoiceKey, setSelectedChoiceKey] = useState<string | null>(null);
   const [storyData,     setStoryData]     = useState<StoryPlayResponse | null>(null);
@@ -149,6 +231,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   const [skipPassItem, setSkipPassItem] = useState<ShopItem | null>(null);
   const [loadingSkipPass, setLoadingSkipPass] = useState(false);
   const [usingSkipPass, setUsingSkipPass] = useState(false);
+  const [restartConfirmVisible, setRestartConfirmVisible] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const lastMessageRef = useRef<View>(null);
@@ -332,6 +415,31 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     setMessages(prev => [...prev, { id: msgId(), role, text, speaker, sourceKey, time, characterImg }]);
   }
 
+  function clearMessagePages() {
+    setPreviousMessagePages([]);
+    setNextMessagePages([]);
+  }
+
+  function showPreviousMessagePage() {
+    if (previousMessagePages.length === 0 || sending) return;
+    const previousPage = previousMessagePages[previousMessagePages.length - 1];
+    setPreviousMessagePages(prev => prev.slice(0, -1));
+    setNextMessagePages(prev => [messages, ...prev]);
+    setMessages(previousPage);
+    setChoices([]);
+    setSelectedChoiceKey(null);
+  }
+
+  function showNextMessagePage() {
+    if (nextMessagePages.length === 0 || sending) return;
+    const nextPage = nextMessagePages[0];
+    setNextMessagePages(prev => prev.slice(1));
+    setPreviousMessagePages(prev => [...prev, messages]);
+    setMessages(nextPage);
+    setChoices([]);
+    setSelectedChoiceKey(null);
+  }
+
   // ── 상태만 갱신 (메시지 추가 없이) ──────────────────────────────────────
 
   function applyStateOnly(data: StoryPlayResponse) {
@@ -355,32 +463,39 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
   // ── 최초 진입: 히스토리 확인 후 복원 or 새 시작 ────────────────────────
 
-  async function fillCharacterMetaFromChatRoom() {
-    try {
-      const room = await getStoryChatRoom(scenario_id, 1);
-      const representative =
-        room.characters.find(character => character.representative) ??
-        room.characters[0] ??
-        null;
-      const imageUrl = representative?.imageUrl || room.chat.imageUrl;
-      const name = representative?.name || room.chat.displayName || '';
-      const sub = representative?.title || '';
+  function applyCharacterMetaFromChatRoom(room: StoryChatRoomResponse) {
+    const representative =
+      room.characters.find(character => character.representative) ??
+      room.characters[0] ??
+      null;
+    const imageUrl = representative?.imageUrl || room.chat.imageUrl;
+    const name = representative?.name || room.chat.displayName || '';
+    const sub = representative?.title || '';
 
-      if (imageUrl || name || sub) {
-        setCharacterMeta(prev => ({
-          name: prev.name || name,
-          sub: prev.sub || sub,
-          img: prev.img || resolveCharacterImage(imageUrl),
-        }));
-      }
+    if (imageUrl || name || sub) {
+      setCharacterMeta(prev => ({
+        name: prev.name || name,
+        sub: prev.sub || sub,
+        img: prev.img || resolveCharacterImage(imageUrl),
+      }));
+    }
+  }
+
+  async function fillCharacterMetaFromChatRoom(messageLimit = 1): Promise<StoryChatRoomResponse | null> {
+    try {
+      const room = await getStoryChatRoom(scenario_id, messageLimit);
+      applyCharacterMetaFromChatRoom(room);
+      return room;
     } catch (e: any) {
       console.log('[StoryAPI] chat room character meta fallback skipped:', e?.response?.data ?? e?.message ?? e);
+      return null;
     }
   }
 
   async function initStory() {
     setLoading(true);
     setMessages([]);
+    clearMessagePages();
     setChoices([]);
     setSelectedChoiceKey(null);
     setStoryData(null);
@@ -390,18 +505,8 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
       if (history.length > 0) {
         // 이전 대화 복원
         setIsRestarting(false);
-        const restored = history.map((item) => ({
-          id: msgId(),
-          role: item.role === 'assistant'                                                       ? 'character' as Role
-              : item.role === 'choice' || item.role === 'user' || item.role === 'user_message' ? 'user'      as Role
-              : item.role === 'narration'                                                      ? 'narration' as Role
-              : 'system' as Role,
-          text: item.content,
-          speaker: item.character_name ?? undefined,
-          characterImg: historyCharacterImage(item),
-        }));
+        const restored = history.map(historyItemToMessage);
         initialScrollPendingRef.current = true;
-        setMessages(restored);
         // 히스토리에서 캐릭터 이름 선 추출 (API 응답 전 헤더 채우기)
         const firstCharItem = history.find(item => item.role === 'assistant' && item.character_name);
         if (firstCharItem?.character_name || firstCharItem) {
@@ -411,7 +516,11 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
             img: prev.img || historyCharacterImage(firstCharItem),
           }));
         }
-        await fillCharacterMetaFromChatRoom();
+        const room = await fillCharacterMetaFromChatRoom(100);
+        const pagedHistory = splitHistoryMessagesByChapter(history, restored, room?.recentMessages ?? []);
+        setPreviousMessagePages(pagedHistory.previousPages);
+        setNextMessagePages([]);
+        setMessages(pagedHistory.currentPage);
         // 현재 선택지·상태만 가져오기 (메시지 추가 없음)
         const data = await playStory({ scenario_id, restart: false });
         applyStateOnly(data);
@@ -446,6 +555,7 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
     setIsRestarting(restart);
     if (restart) {
       setMessages([]);
+      clearMessagePages();
       setChoices([]);
       setSelectedChoiceKey(null);
       setStoryData(null);
@@ -500,12 +610,27 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   // ── 다음 챕터 ────────────────────────────────────────────────────────────
 
   async function handleNextChapter() {
+    const archivedMessages = messages;
     setSending(true);
+    if (archivedMessages.length > 0) {
+      setPreviousMessagePages(prev => [...prev, archivedMessages]);
+    }
+    setNextMessagePages([]);
+    setMessages([]);
+    setChoices([]);
+    setSelectedChoiceKey(null);
+    setActiveQuest(null);
     try {
       const data = await playStory({ scenario_id, restart: false });
       applyResponse(data);
     } catch (e: any) {
-      pushMessage('system', `오류: ${e?.message ?? '다음 챕터로 이동할 수 없습니다.'}`);
+      if (archivedMessages.length > 0) {
+        setPreviousMessagePages(prev => prev.slice(0, -1));
+      }
+      setMessages([
+        ...archivedMessages,
+        { id: msgId(), role: 'system', text: `오류: ${e?.message ?? '다음 챕터로 이동할 수 없습니다.'}` },
+      ]);
     } finally {
       setSending(false);
     }
@@ -653,18 +778,22 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
   // ── 처음부터 시작 확인 ────────────────────────────────────────────────────
 
   function confirmRestart() {
-    Alert.alert('처음부터 시작', '스토리 진행이 초기화됩니다. 계속할까요?', [
-      { text: '취소', style: 'cancel' },
-      { text: '확인', onPress: () => loadStory(true) },
-    ]);
+    setRestartConfirmVisible(true);
+  }
+
+  function handleRestartConfirm() {
+    setRestartConfirmVisible(false);
+    loadStory(true);
   }
 
   // ── 챕터 완료 여부 ────────────────────────────────────────────────────────
 
-  const isChapterCompleted = storyData?.is_chapter_completed && !storyData?.is_story_completed;
-  const isStoryCompleted   = storyData?.is_story_completed;
-  const hasChoices         = choices.length > 0;
-  const showTextInput      = !hasChoices && !isChapterCompleted && !isStoryCompleted && !activeQuest;
+  const isViewingPastPage  = nextMessagePages.length > 0;
+  const canInteractWithPage = !isViewingPastPage;
+  const isChapterCompleted = canInteractWithPage && storyData?.is_chapter_completed && !storyData?.is_story_completed;
+  const isStoryCompleted   = canInteractWithPage && storyData?.is_story_completed;
+  const hasChoices         = canInteractWithPage && choices.length > 0;
+  const showTextInput      = canInteractWithPage && !hasChoices && !isChapterCompleted && !isStoryCompleted && !activeQuest;
 
   function focusMessageInput() {
     if (!showTextInput || sending) return;
@@ -727,6 +856,30 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
 
         {/* 채팅 */}
+        {(previousMessagePages.length > 0 || nextMessagePages.length > 0) && (
+          <View style={s.pageNav}>
+            <TouchableOpacity
+              onPress={showPreviousMessagePage}
+              disabled={previousMessagePages.length === 0 || sending}
+              activeOpacity={0.75}
+              style={[s.pageNavBtn, (previousMessagePages.length === 0 || sending) && s.pageNavBtnDisabled]}
+            >
+              <ChevronLeft size={14} color={previousMessagePages.length === 0 || sending ? '#d1d5db' : '#be185d'} strokeWidth={2.5} />
+              <Text style={[s.pageNavTxt, (previousMessagePages.length === 0 || sending) && s.pageNavTxtDisabled]}>이전 챕터</Text>
+            </TouchableOpacity>
+            <Text style={s.pageNavStatus}>{isViewingPastPage ? '이전 대화 보기' : '현재 챕터'}</Text>
+            <TouchableOpacity
+              onPress={showNextMessagePage}
+              disabled={nextMessagePages.length === 0 || sending}
+              activeOpacity={0.75}
+              style={[s.pageNavBtn, (nextMessagePages.length === 0 || sending) && s.pageNavBtnDisabled]}
+            >
+              <Text style={[s.pageNavTxt, (nextMessagePages.length === 0 || sending) && s.pageNavTxtDisabled]}>다음 챕터</Text>
+              <ChevronRight size={14} color={nextMessagePages.length === 0 || sending ? '#d1d5db' : '#be185d'} strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <ScrollView
           ref={scrollRef}
           style={s.chatScroll}
@@ -757,10 +910,10 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
                 <MessageBubble
                   message={msg}
                   characterImg={characterMeta.img}
-                  showQuestComplete={activeQuest?.id === msg.questId}
+                  showQuestComplete={canInteractWithPage && activeQuest?.id === msg.questId}
                   completingQuest={completingQuest}
-                  showQuestSkip={activeQuest?.id === msg.questId && Boolean(skipPassItem)}
-                  loadingQuestSkip={activeQuest?.id === msg.questId && loadingSkipPass}
+                  showQuestSkip={canInteractWithPage && activeQuest?.id === msg.questId && Boolean(skipPassItem)}
+                  loadingQuestSkip={canInteractWithPage && activeQuest?.id === msg.questId && loadingSkipPass}
                   usingQuestSkip={usingSkipPass}
                   onQuestComplete={handleQuestComplete}
                   onQuestSkip={handleQuestSkip}
@@ -881,6 +1034,61 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
         )}
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal
+        visible={restartConfirmVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setRestartConfirmVisible(false)}
+      >
+        <View style={s.restartModalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRestartConfirmVisible(false)} />
+          <View style={s.restartModalCard}>
+            <LinearGradient
+              colors={['#ec4899', '#0ea5e9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={s.restartModalIcon}
+            >
+              <RotateCcw size={22} color="#fff" strokeWidth={2.5} />
+            </LinearGradient>
+
+            <Text style={s.restartModalTitle}>처음부터 시작할까요?</Text>
+            <Text style={s.restartModalDesc}>
+              지금까지의 스토리 진행을 초기화하고 첫 장면부터 다시 시작합니다.
+            </Text>
+
+            <View style={s.restartModalNotice}>
+              <Text style={s.restartModalNoticeTxt}>이 작업은 되돌릴 수 없어요.</Text>
+            </View>
+
+            <View style={s.restartModalActions}>
+              <TouchableOpacity
+                onPress={() => setRestartConfirmVisible(false)}
+                activeOpacity={0.85}
+                style={s.restartCancelBtn}
+              >
+                <Text style={s.restartCancelTxt}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleRestartConfirm}
+                activeOpacity={0.85}
+                style={s.restartConfirmBtnWrap}
+              >
+                <LinearGradient
+                  colors={['#ec4899', '#0ea5e9']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={s.restartConfirmBtn}
+                >
+                  <Text style={s.restartConfirmTxt}>다시 시작</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenBackground>
   );
 }
@@ -1150,6 +1358,13 @@ const s = StyleSheet.create({
   headerSub: { fontSize: 11, color: '#fce7f3' },
   restartBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 
+  pageNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#fce7f3', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  pageNavBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, minWidth: 86, borderRadius: 999, borderWidth: 1, borderColor: '#fbcfe8', backgroundColor: '#fdf2f8', paddingHorizontal: 10, paddingVertical: 6 },
+  pageNavBtnDisabled: { borderColor: '#f3f4f6', backgroundColor: '#f9fafb' },
+  pageNavTxt: { fontSize: 11, fontWeight: '800', color: '#be185d' },
+  pageNavTxtDisabled: { color: '#d1d5db' },
+  pageNavStatus: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '800', color: '#6b7280' },
+
 chatScroll: { flex: 1 },
   chatContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 12 },
 
@@ -1250,4 +1465,103 @@ chatScroll: { flex: 1 },
   questSkipWrap: { borderRadius: 12, borderWidth: 2, borderColor: '#facc15', backgroundColor: '#fffbeb', paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   questSkipTxt: { color: '#92400e', fontWeight: '800', fontSize: 14 },
   questSkipLoading: { paddingVertical: 6, alignItems: 'center' },
+
+  restartModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  restartModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 18,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fbcfe8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  restartModalIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  restartModalTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  restartModalDesc: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '500',
+    color: '#4b5563',
+    textAlign: 'center',
+  },
+  restartModalNotice: {
+    width: '100%',
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: '#fdf2f8',
+    borderWidth: 1,
+    borderColor: '#fbcfe8',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  restartModalNoticeTxt: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#be185d',
+    textAlign: 'center',
+  },
+  restartModalActions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  restartCancelBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  restartCancelTxt: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#6b7280',
+  },
+  restartConfirmBtnWrap: {
+    flex: 1.35,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  restartConfirmBtn: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restartConfirmTxt: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+  },
 });
