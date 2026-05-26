@@ -67,6 +67,9 @@ export async function playStory(req: StoryPlayRequest): Promise<StoryPlayRespons
 export interface HistoryItem {
   role: string;
   character_name: string | null;
+  character_image_url?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
   content: string;
 }
 

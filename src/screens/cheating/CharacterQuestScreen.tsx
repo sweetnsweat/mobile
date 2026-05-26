@@ -15,6 +15,7 @@ import { usePulseAnimation } from '../../hooks/usePulseAnimation';
 import {
   playStory,
   fetchStoryHistory,
+  getStoryChatRoom,
   extractStoryTexts,
   extractChoices,
   StoryPlayResponse,
@@ -33,6 +34,10 @@ function resolveCharacterImage(url?: string): string {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   return `${AI_MEDIA_ORIGIN}${url}`;
+}
+
+function historyCharacterImage(item: any): string {
+  return resolveCharacterImage(item?.character_image_url ?? item?.image_url ?? item?.imageUrl);
 }
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
@@ -350,6 +355,29 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
 
   // ── 최초 진입: 히스토리 확인 후 복원 or 새 시작 ────────────────────────
 
+  async function fillCharacterMetaFromChatRoom() {
+    try {
+      const room = await getStoryChatRoom(scenario_id, 1);
+      const representative =
+        room.characters.find(character => character.representative) ??
+        room.characters[0] ??
+        null;
+      const imageUrl = representative?.imageUrl || room.chat.imageUrl;
+      const name = representative?.name || room.chat.displayName || '';
+      const sub = representative?.title || '';
+
+      if (imageUrl || name || sub) {
+        setCharacterMeta(prev => ({
+          name: prev.name || name,
+          sub: prev.sub || sub,
+          img: prev.img || resolveCharacterImage(imageUrl),
+        }));
+      }
+    } catch (e: any) {
+      console.log('[StoryAPI] chat room character meta fallback skipped:', e?.response?.data ?? e?.message ?? e);
+    }
+  }
+
   async function initStory() {
     setLoading(true);
     setMessages([]);
@@ -370,14 +398,20 @@ export function CharacterQuestScreen({ navigation, route }: Props) {
               : 'system' as Role,
           text: item.content,
           speaker: item.character_name ?? undefined,
+          characterImg: historyCharacterImage(item),
         }));
         initialScrollPendingRef.current = true;
         setMessages(restored);
         // 히스토리에서 캐릭터 이름 선 추출 (API 응답 전 헤더 채우기)
         const firstCharItem = history.find(item => item.role === 'assistant' && item.character_name);
-        if (firstCharItem?.character_name) {
-          setCharacterMeta(prev => ({ ...prev, name: firstCharItem.character_name! }));
+        if (firstCharItem?.character_name || firstCharItem) {
+          setCharacterMeta(prev => ({
+            ...prev,
+            name: firstCharItem?.character_name ?? prev.name,
+            img: prev.img || historyCharacterImage(firstCharItem),
+          }));
         }
+        await fillCharacterMetaFromChatRoom();
         // 현재 선택지·상태만 가져오기 (메시지 추가 없음)
         const data = await playStory({ scenario_id, restart: false });
         applyStateOnly(data);
