@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
 import { getMessaging, onMessage } from '@react-native-firebase/messaging';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { AppAlertProvider } from './src/components/AppAlertProvider';
 import {
   handlePushNotificationNavigation,
   PushNotificationData,
@@ -54,5 +55,9 @@ export default function App() {
     };
   }, []);
 
-  return <AppNavigator />;
+  return (
+    <AppAlertProvider>
+      <AppNavigator />
+    </AppAlertProvider>
+  );
 }

@@ -8,6 +8,48 @@ const api = axios.create({
   },
 });
 
+function koreanAuthErrorMessage(message?: string | null, fallback = '요청 처리 중 오류가 발생했습니다.'): string {
+  const raw = (message ?? '').trim();
+  const normalized = raw.toLowerCase();
+
+  if (!raw) return fallback;
+  if (
+    normalized.includes('invalid login') ||
+    normalized.includes('invalid credentials') ||
+    normalized.includes('bad credentials') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('authentication failed')
+  ) {
+    return '아이디 또는 비밀번호가 올바르지 않습니다.';
+  }
+  if (
+    normalized.includes('invalid password') ||
+    normalized.includes('wrong password') ||
+    normalized.includes('incorrect password') ||
+    normalized.includes('current password') ||
+    normalized.includes('password mismatch')
+  ) {
+    return '현재 비밀번호가 올바르지 않습니다.';
+  }
+  if (normalized.includes('inactive') || normalized.includes('disabled')) {
+    return '비활성화된 계정입니다. 고객센터에 문의해 주세요.';
+  }
+  if (normalized.includes('network')) {
+    return '네트워크 연결을 확인해 주세요.';
+  }
+  if (normalized.includes('login id') || normalized.includes('nickname already exists')) {
+    return '이미 사용 중인 아이디 또는 닉네임입니다.';
+  }
+  if (normalized.includes('signup failed')) {
+    return '회원가입에 실패했습니다.';
+  }
+  if (normalized.includes('login failed')) {
+    return '로그인에 실패했습니다.';
+  }
+
+  return raw;
+}
+
 // Types based on backend DTOs
 export interface SignupRequest {
   loginId: string;
@@ -79,11 +121,11 @@ export const signup = async (loginId: string, password: string, nickname: string
     if (error.response) {
       const { status, data } = error.response;
       if (status === 409) {
-        throw new Error(data.message || 'Login ID or nickname already exists');
+        throw new Error(koreanAuthErrorMessage(data.message, '이미 사용 중인 아이디 또는 닉네임입니다.'));
       }
-      throw new Error(data.message || 'Signup failed');
+      throw new Error(koreanAuthErrorMessage(data.message, '회원가입에 실패했습니다.'));
     }
-    throw new Error('Network error. Please check your connection.');
+    throw new Error('네트워크 연결을 확인해 주세요.');
   }
 };
 
@@ -98,14 +140,14 @@ export const login = async (loginId: string, password: string): Promise<AuthResp
     if (error.response) {
       const { status, data } = error.response;
       if (status === 401) {
-        throw new Error('Invalid login credentials');
+        throw new Error('아이디 또는 비밀번호가 올바르지 않습니다.');
       }
       if (status === 403) {
-        throw new Error('User account is inactive');
+        throw new Error('비활성화된 계정입니다. 고객센터에 문의해 주세요.');
       }
-      throw new Error(data.message || 'Login failed');
+      throw new Error(koreanAuthErrorMessage(data.message || data.detail, '로그인에 실패했습니다.'));
     }
-    throw new Error('Network error. Please check your connection.');
+    throw new Error('네트워크 연결을 확인해 주세요.');
   }
 };
 
@@ -163,9 +205,9 @@ export const changePassword = async (currentPassword: string, newPassword: strin
   } catch (error: any) {
     if (error.response) {
       const data = error.response.data;
-      throw new Error(data?.detail || data?.message || '비밀번호 변경에 실패했습니다.');
+      throw new Error(koreanAuthErrorMessage(data?.detail || data?.message, '비밀번호 변경에 실패했습니다.'));
     }
-    throw new Error('네트워크 오류가 발생했습니다.');
+    throw new Error('네트워크 연결을 확인해 주세요.');
   }
 };
 
