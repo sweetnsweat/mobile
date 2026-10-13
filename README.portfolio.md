@@ -1,28 +1,24 @@
 # Sweet & Sweat | 캐릭터와 운동 퀘스트를 연결한 운동 습관 형성 앱
 
-- 운동 습관 형성이 필요한 초보자를 위한 모바일 서비스임.
-- 루틴 설정, AI 캐릭터와의 대화, 운동 퀘스트, 보상과 경쟁을 하나의 흐름으로 연결함.
-- React Native 앱의 모든 화면 구현, Health Connect 연동, 모바일 기능·API 연동 테스트를 담당함.
+- 운동 습관 형성이 필요한 초보자를 위한 캐릭터챗 기반 운동 습관 형성 어플리케이션
+- 캐릭터와 대화하며 스토리 속 퀘스트를 실제 운동으로 수행하고, 보상을 얻으며 꾸준한 동기부여를 줌.
+
 
 <img src="portfolio-assets/home.jpg" alt="최종 결과보고서에 수록된 Sweet & Sweat 홈 화면" width="300">
-
-- **화면 출처:** 최종 결과보고서에 수록된 UI 자료임.
-- **최종 구현과의 차이:** 이후 커밋에서 검색창 삭제, 화면 명칭·디자인 변경 등이 이루어짐.
 
 ## 프로젝트 개요
 
 | 항목 | 내용 |
 | --- | --- |
 | 개발 기간 | 2026.03.04 ~ 2026.06.10, 공식 개발 기간 기준임. 주제 탐색과 사전 기획 회의는 2026년 1월부터 진행함 |
-| 개발 형태·인원 | 창의융합종합설계 팀 프로젝트, 3명으로 개발함 |
-| 본인 | 함서현, 모바일 앱 개발 및 테스트를 담당함 |
+| 개발 형태·인원 | 대학 수업 팀 프로젝트, 3명 |
+| 담당 직무 | 팀장, 모바일 앱 개발 및 웨어러블 기기 연동 테스트 |
 | 담당 범위 | 프로젝트 기획 및 UI 구성, React Native 앱의 모든 화면 구현, Health Connect 건강 데이터 연동, FCM·알림 연동, 앱 기능·API 연동 테스트와 사용자 흐름 검증을 수행함 |
-| 팀원 역할 | 하대영: 백엔드 API·DB·서버 환경 관리 / 노가영: AI 스토리 서버·대화·선택지·퀘스트 연동을 담당함 |
-| 모바일 기술 | React Native 0.85.2, React 19.2.3, TypeScript, React Navigation, Axios, Health Connect, Firebase Messaging, Notifee를 사용함 |
+| 모바일 기술 | React Native 0.85.2, React 19.2.3, TypeScript, React Navigation, Axios, Health Connect, Firebase Messaging, Notifee |
 | 전체 시스템 | React Native 앱, Spring Boot 백엔드, FastAPI AI 서버로 구성함. PostgreSQL·Redis·Docker·Tailscale 등을 팀의 서버 환경에 활용함 |
-| 협업 도구 | Git·GitHub, Notion, Figma를 사용함 |
+| 협업 도구 | Git·GitHub, Notion, Figma, Swagger|
 | 저장소 | [sweetnsweat/mobile](https://github.com/sweetnsweat/mobile) |
-| 배포·사용 현황 | 배포 이력이 있으며 현재 운영은 중단된 상태임 |
+| 배포·사용 현황 | 배포 이력이 있으며 현재 운영은 중단된 상태 |
 
 ## 1. 사용자 활동 분석과 요구사항 구체화
 
