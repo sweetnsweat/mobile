@@ -440,10 +440,6 @@ npm run android
     <td valign="top">시스템 구조, 구현 기술, 주요 함수, 사용자 매뉴얼, 역할 분담, 회의록과 팀원별 포트폴리오를 확인할 수 있음</td>
   </tr>
   <tr>
-    <td valign="top">본인 최종보고서 [첨부 필요: 저장소 내 문서 링크]</td>
-    <td valign="top">모바일 화면 구현, 건강 데이터 연동, 앱·API 테스트 기여를 확인할 수 있음</td>
-  </tr>
-  <tr>
     <td valign="top"><a href="https://github.com/sweetnsweat/mobile/blob/375cbfe/docs/FCM_ANDROID_FRONTEND_GUIDE.md">Android FCM 연동 가이드</a></td>
     <td valign="top">모바일·백엔드·서버의 알림 연동 역할과 설정을 확인할 수 있음</td>
   </tr>
