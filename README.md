@@ -96,7 +96,7 @@
 - **상세 조회:** 서버가 동기화를 권장하면 기록 전송 후 배틀 정보를 재조회하도록 구현함.
 - **화면 표시:** 사용자가 기록 반영 시각을 확인할 수 있도록 표시를 추가함.
 - **한계:** 동기화 실패 시 로그를 남기고 배틀 조회를 계속함. 기본적으로 최근 30일 데이터를 읽어 전송하며, Health Connect에 아직 도착하지 않은 기기 기록은 반영할 수 없음. 따라서 모든 환경에서 최신 기록을 보장하지 않음.
-- **근거:** [배틀 건강 데이터 반영 시점 수정 커밋](https://github.com/sweetnsweat/mobile/commit/6125ab045521b9ba833c7d837b9f6609015619e1), [건강 데이터 동기화 서비스](https://github.com/sweetnsweat/mobile/blob/375cbfe/src/services/HealthConnectService.ts)를 참고
+- [배틀 건강 데이터 반영 시점 수정 커밋](https://github.com/sweetnsweat/mobile/commit/6125ab045521b9ba833c7d837b9f6609015619e1), [건강 데이터 동기화 서비스](https://github.com/sweetnsweat/mobile/blob/375cbfe/src/services/HealthConnectService.ts)를 참고
 
 ### 3.2. 대화 기록을 다시 열었을 때 캐릭터 이미지가 누락되는 문제
 
@@ -119,7 +119,7 @@
 
 - **기록 복원:** 메시지의 이미지 정보를 유지하고 부족한 캐릭터 정보를 별도 조회로 보완함.
 - **이미지 재로딩:** URL 변경 시 이전 실패 상태를 초기화해 다시 표시할 수 있도록 수정함.
-- **근거:** [히스토리 조회 시 캐릭터 이미지 오류 수정 커밋](https://github.com/sweetnsweat/mobile/commit/e65288a957b7cc59a3c7824604ddee0f29810441)을 참고
+- [히스토리 조회 시 캐릭터 이미지 오류 수정 커밋](https://github.com/sweetnsweat/mobile/commit/e65288a957b7cc59a3c7824604ddee0f29810441)을 참고
 
 ### 3.3. 추가 개선: 스토리 퀘스트 응답과 화면 상태 연결
 
@@ -149,7 +149,7 @@
 
 - **표시 결과:** 퀘스트 제목·운동·목표·수행 이유를 응답 필드에 맞춰 표시함.
 - **사용자 흐름:** 스토리에서 제시된 운동과 다음 수행 목표를 함께 확인할 수 있도록 변경함.
-- **근거:** [스토리 퀘스트 표시 및 상태 처리 변경 커밋](https://github.com/sweetnsweat/mobile/commit/4e9475780924d3ce5ee4a8b1fb33622b43a75760)
+- **[스토리 퀘스트 표시 및 상태 처리 변경 커밋](https://github.com/sweetnsweat/mobile/commit/4e9475780924d3ce5ee4a8b1fb33622b43a75760)
 
 ### 3.4. 알림 진입과 내비게이션 초기화 시점 연결
 
@@ -200,19 +200,14 @@
 - **검증 과정:** 주요 기능 반복 확인 → 오류 원인 정리·팀원 공유 → 수정 후 재검증을 수행함.
 - **확인 범위:** 화면 동작, API 상태 코드·응답값·오류 메시지를 함께 확인함.
 
-| 검증 항목 | 방법 | 확인한 내용·근거 |
+| 검증 항목 | 방법 |
 | --- | --- | --- |
 | 주요 기능과 화면 흐름 | 회원가입·로그인·퀘스트 조회·캐릭터 선택·랭킹 조회·상점 이용을 반복 테스트함 | 화면 이동·버튼 동작·입력값 처리를 점검하고, 오류를 팀원과 공유한 뒤 수정 후 재검증함 |
 | 앱·서버 API 연동 | React Native 앱과 Spring Boot 서버의 요청·응답을 확인함 | 상태 코드·응답값·오류 메시지를 확인하고 연동 오류를 팀원에게 공유함 |
-| 건강 데이터 연동 | Android 실기기와 웨어러블 연동 환경에서 테스트함 | 권한 설정·데이터 수집·연결 문제를 확인함. [읽기 권한 선언](https://github.com/sweetnsweat/mobile/commit/504a09f2f8b10821e78455e01f56a1c05db2bed3)과 [Android 권한 처리 연결](https://github.com/sweetnsweat/mobile/commit/3b30a915ad95a0ee67f476437de9235f071d9298)을 코드 근거로 확인할 수 있음 |
-| 오류 수정 전후 | 수정 커밋의 변경 전후 코드를 확인함 | 배틀 동기화 시점, 이미지 복원, 퀘스트 필드 매핑의 변경 근거를 확인할 수 있음. 당시 오류별 재현·통과 기록은 별도로 첨부되어 있지 않음 |
-| 최종 발표 준비 | 로그인 후 루틴·퀘스트 조회, 스토리 진행, 퀘스트 완료·보상 확인 순서로 시연을 준비함 | 5월 27일 회의에서 화면 전환과 데이터 표시, API 동작 점검 범위를 정리함 |
+| 건강 데이터 연동 | Android 실기기와 웨어러블 연동 환경에서 테스트함 | 권한 설정·데이터 수집·연결 문제를 확인함. [읽기 권한 선언](https://github.com/sweetnsweat/mobile/commit/504a09f2f8b10821e78455e01f56a1c05db2bed3) [Android 권한 처리 연결](https://github.com/sweetnsweat/mobile/commit/3b30a915ad95a0ee67f476437de9235f071d9298) |
 
 - **추가 수정:** [세계관 상세 모달 스크롤 수정](https://github.com/sweetnsweat/mobile/commit/cbe5e48a27e9a87431677c976763ea9be12d9de9), [Firebase Messaging 호출 방식 변경](https://github.com/sweetnsweat/mobile/commit/6801f2905feaee52d730422883a1dba248ce864a) 내역이 있음.
-- **자동 테스트 코드:** 앱 렌더링을 확인하는 [기본 테스트](https://github.com/sweetnsweat/mobile/blob/375cbfe/__tests__/App.test.tsx)가 있음.
-- **미확인 결과:** 자동 테스트 통과 이력, 오류별 회귀 테스트, iOS 실기기 검증 결과는 자료에 포함되어 있지 않음.
-- **성능 목표:** 응답 시간 3초 이내·동시 사용자 100명은 요구명세서의 검수 목표이며, 측정 결과가 없어 달성 성과로 기재하지 않음.
-- \[첨부 필요: 오류별 재현 절차 및 수정 후 확인 기록\]
+- **자동 테스트 코드:** [기본 테스트](https://github.com/sweetnsweat/mobile/blob/375cbfe/__tests__/App.test.tsx)
 
 <details>
 
@@ -231,11 +226,9 @@
 
 ## 6. 구현 결과와 피드백 반영
 
-앱·백엔드·AI 서버를 연결하여 루틴 설정부터 캐릭터 대화·운동 퀘스트·보상까지 이어지는 사용자 흐름을 구현함. 본인은 모바일 화면과 건강 데이터·알림 연동, 앱·API 테스트를 담당함.
+앱·백엔드·AI 서버를 연결하여 루틴 설정부터 캐릭터 대화·운동 퀘스트·보상까지 이어지는 사용자 흐름을 구현함. 
 
 ### 6.1. 사용자에게 제공한 기능
-
-아래는 구현 범위이며, 운동 지속률·참여도 향상은 별도로 측정하지 않음.
 
 | 추가·개선한 기능 | 사용자가 수행할 수 있게 된 활동 |
 | --- | --- |
@@ -258,8 +251,6 @@
 - **본인 작업:** 해당 흐름의 화면 연결과 데이터 표시를 점검함.
 
 ### 6.3. 주요 화면
-
-- **자료 출처:** 최종 결과보고서의 사용자 매뉴얼에 수록된 UI 자료를 사용함.
 
 | 캐릭터 대화·퀘스트 | 배틀 | 마이페이지 |
 | --- | --- | --- |
@@ -291,7 +282,7 @@
 
 ### 7.2. Android 실행 명령
 
-- **명령어 근거:** [Android FCM 연동 가이드](https://github.com/sweetnsweat/mobile/blob/375cbfe/docs/FCM_ANDROID_FRONTEND_GUIDE.md)에 Firebase 패키지 설치 후 Android 빌드 실행 명령이 명시됨.
+[Android FCM 연동 가이드](https://github.com/sweetnsweat/mobile/blob/375cbfe/docs/FCM_ANDROID_FRONTEND_GUIDE.md)에 Firebase 패키지 설치 후 Android 빌드 실행 명령이 명시됨.
 
 ```bash
 npm run android
