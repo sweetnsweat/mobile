@@ -432,11 +432,11 @@ npm run android
     <th width="75%" align="left">확인할 수 있는 내용</th>
   </tr>
   <tr>
-    <td valign="top">요구명세서 [첨부 필요: 저장소 내 문서 링크]</td>
+    <td valign="top"><a href="docs/요구명세서.pdf">요구명세서</a></td>
     <td valign="top">기능 요구사항, UI 요구사항, 비기능 요구사항과 검수 목표를 확인할 수 있음</td>
   </tr>
   <tr>
-    <td valign="top">최종 결과보고서 [첨부 필요: 저장소 내 문서 링크]</td>
+    <td valign="top"><a href="docs/결과보고서.pdf">최종 결과보고서</a></td>
     <td valign="top">시스템 구조, 구현 기술, 주요 함수, 사용자 매뉴얼, 역할 분담, 회의록과 팀원별 포트폴리오를 확인할 수 있음</td>
   </tr>
   <tr>
