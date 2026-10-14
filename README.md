@@ -12,17 +12,48 @@
 
 ## 1. 프로젝트 개요
 
-| 항목 | 내용 |
-| --- | --- |
-| 개발 기간 | 2026.03.04 \~ 2026.06.10, 3개월 |
-| 개발 형태·인원 | 대학 수업 팀 프로젝트, 3명 |
-| 담당 직무 | 모바일 앱 개발 및 웨어러블 기기 연동 테스트 |
-| 담당 범위 | 프로젝트 기획 및 UI 구성, React Native 기반 화면 구현, Health Connect 건강 데이터·FCM·알림 연동, 사용자 경험 테스트 |
-| 모바일 기술 | React Native 0.85.2, React 19.2.3, TypeScript, React Navigation, Axios, Health Connect, Firebase Messaging, Notifee |
-| 전체 시스템 | React Native 앱, Spring Boot 백엔드, FastAPI AI 서버로 구성. PostgreSQL·Redis·Docker·Tailscale 등을 팀의 서버 환경에 활용함 |
-| 협업 도구 | Git·GitHub, Notion, Figma, Swagger |
-| 저장소 | [sweetnsweat/mobile](https://github.com/sweetnsweat/mobile) |
-| 배포·사용 현황 | 배포 이력 있음, 현재 운영은 중단된 상태 |
+<table>
+  <tr>
+    <th width="25%" align="left">항목</th>
+    <th width="75%" align="left">내용</th>
+  </tr>
+  <tr>
+    <td valign="top">개발 기간</td>
+    <td valign="top">2026.03.04 ~ 2026.06.10, 3개월</td>
+  </tr>
+  <tr>
+    <td valign="top">개발 형태·인원</td>
+    <td valign="top">대학 수업 팀 프로젝트, 3명</td>
+  </tr>
+  <tr>
+    <td valign="top">담당 직무</td>
+    <td valign="top">모바일 앱 개발 및 웨어러블 기기 연동 테스트</td>
+  </tr>
+  <tr>
+    <td valign="top">담당 범위</td>
+    <td valign="top">프로젝트 기획 및 UI 구성<br>React Native 기반 화면 구현<br>Health Connect 건강 데이터·FCM·알림 연동<br>사용자 경험 테스트</td>
+  </tr>
+  <tr>
+    <td valign="top">모바일 기술</td>
+    <td valign="top">React Native 0.85.2 · React 19.2.3 · TypeScript<br>React Navigation · Axios<br>Health Connect · Firebase Messaging · Notifee</td>
+  </tr>
+  <tr>
+    <td valign="top">전체 시스템</td>
+    <td valign="top">앱: React Native<br>백엔드: Spring Boot / AI 서버: FastAPI<br>서버 환경: PostgreSQL · Redis · Docker · Tailscale</td>
+  </tr>
+  <tr>
+    <td valign="top">협업 도구</td>
+    <td valign="top">Git·GitHub, Notion, Figma, Swagger</td>
+  </tr>
+  <tr>
+    <td valign="top">저장소</td>
+    <td valign="top"><a href="https://github.com/sweetnsweat/mobile">sweetnsweat/mobile</a></td>
+  </tr>
+  <tr>
+    <td valign="top">배포·사용 현황</td>
+    <td valign="top">배포 이력 있음<br>현재 운영은 중단된 상태</td>
+  </tr>
+</table>
 
 ---
 
@@ -52,12 +83,33 @@
 
 ### 2.2. 초기 구상과 최종 범위의 차이
 
-| 단계 | 검토한 내용 | 변경 이유와 결정 |
-| --- | --- | --- |
-| 초기 구상 | 건강 데이터 기반 상태 분석, 날씨와 공공시설 정보를 활용한 운동·장소 추천 | 건강 데이터만으로 세부 운동을 추천하는 데 한계가 있으며, 운동 추천의 의학적 근거와 검증 부담이 크다고 판단함 |
-| 1차 방향 조정 | 처방보다 운동 수행을 유도하는 루틴·퀘스트에 집중함 | 루틴은 주간 계획, 퀘스트는 오늘 수행할 실행 단위로 역할을 나눔. 웨어러블 데이터는 수행 검증과 난이도 조절의 보조 수단으로 활용하기로 함 |
-| 서비스 구체화 | 캐릭터 챗, 퀘스트, 보상, 캐릭터 성장, 경쟁을 핵심 구조로 정리 | 루틴 설정부터 운동 수행·보상·스토리 진행까지 이어지는 참여 흐름을 정의 |
-| 중간 발표 이후 | 스토리·보상의 연결을 더 명확히 하거나 추가 기능을 제공하여 사용자의 몰입을 이끌어내야 한다는 피드백 수집 | 로그인 → 루틴 활성화 → 컨디션 입력 → 오늘의 루틴 조회 → 퀘스트 완료 → 보상 지급 → 스토리 진행 순서로 사용자 시나리오를 정리. 배틀·랭킹 기능을 추가하여 비슷한 기록의 상대와 경쟁, 향상심을 이용한 동기부여를 유도함. |
+<table>
+  <tr>
+    <th width="18%" align="left">단계</th>
+    <th width="36%" align="left">검토한 내용</th>
+    <th width="46%" align="left">변경 이유와 결정</th>
+  </tr>
+  <tr>
+    <td valign="top">초기 구상</td>
+    <td valign="top">건강 데이터 기반 상태 분석<br>날씨·공공시설 정보를 활용한 운동·장소 추천</td>
+    <td valign="top">건강 데이터만으로 세부 운동을 추천하는 데 한계가 있으며, 운동 추천의 의학적 근거와 검증 부담이 크다고 판단함</td>
+  </tr>
+  <tr>
+    <td valign="top">1차 방향 조정</td>
+    <td valign="top">처방보다 운동 수행을 유도하는 루틴·퀘스트에 집중함</td>
+    <td valign="top">루틴은 주간 계획, 퀘스트는 오늘 수행할 실행 단위로 역할을 나눔.<br><br>웨어러블 데이터는 수행 검증과 난이도 조절의 보조 수단으로 활용하기로 함</td>
+  </tr>
+  <tr>
+    <td valign="top">서비스 구체화</td>
+    <td valign="top">캐릭터 챗·퀘스트·보상<br>캐릭터 성장·경쟁을 핵심 구조로 정리</td>
+    <td valign="top">루틴 설정부터 운동 수행·보상·스토리 진행까지 이어지는 참여 흐름을 정의</td>
+  </tr>
+  <tr>
+    <td valign="top">중간 발표 이후</td>
+    <td valign="top">스토리·보상의 연결을 더 명확히 하거나 추가 기능을 제공하여 사용자의 몰입을 이끌어내야 한다는 피드백 수집</td>
+    <td valign="top">로그인 → 루틴 활성화 → 컨디션 입력<br>→ 오늘의 루틴 조회 → 퀘스트 완료<br>→ 보상 지급 → 스토리 진행 순서로 사용자 시나리오를 정리.<br><br>배틀·랭킹 기능을 추가하여 비슷한 기록의 상대와 경쟁, 향상심을 이용한 동기부여를 유도함.</td>
+  </tr>
+</table>
 
 - **최종 구현:** 루틴 선택·생성, 컨디션 입력, 오늘의 운동 확인, 캐릭터 대화·퀘스트 수행, 보상·상점·랭킹·배틀을 연결함.
 - **초기 검토 범위:** 장소 추천과 GPS·사진 인증 구상은 최종 구현 기능과 구분함.
@@ -83,12 +135,28 @@
 - **중복 요청 제어:** `healthDataSyncInFlight`의 진행 중인 Promise를 공유하여 동시 호출이 같은 작업을 기다리도록 구성함. 강제 호출도 진행 중인 작업은 재사용함.
 - **상세 재조회:** 서버의 `healthSync.recommended`에 따라 동기화 후 상세 정보를 한 번 더 조회하고 반환함. 같은 함수 안에서 무한 재조회하지 않음.
 
-| 처리 시점 | 변경 내용 |
-| --- | --- |
-| 매칭 요청 전 | `syncHealthDataWithServer({ force: true })` 호출 후 매칭을 요청하도록 변경함 |
-| 상세 조회 | 서버 응답의 `healthSync.recommended`가 참이면 강제 동기화 후 배틀 정보를 다시 조회하도록 변경함 |
-| 결과 조회 전 | 강제 동기화 후 결과 API를 호출하도록 변경함 |
-| 기록 표시 | 본인과 상대의 최근 건강 데이터 반영 시각을 표시하고, 시각 정보가 없으면 기록 반영 대기 상태를 표시함 |
+<table>
+  <tr>
+    <th width="25%" align="left">처리 시점</th>
+    <th width="75%" align="left">변경 내용</th>
+  </tr>
+  <tr>
+    <td valign="top">매칭 요청 전</td>
+    <td valign="top"><code>syncHealthDataWithServer({ force: true })</code> 호출<br>→ 완료 후 매칭 요청</td>
+  </tr>
+  <tr>
+    <td valign="top">상세 조회</td>
+    <td valign="top"><code>healthSync.recommended</code>가 참인 경우<br>→ 강제 동기화 후 배틀 정보 재조회</td>
+  </tr>
+  <tr>
+    <td valign="top">결과 조회 전</td>
+    <td valign="top">강제 동기화 수행<br>→ 완료 후 결과 API 호출</td>
+  </tr>
+  <tr>
+    <td valign="top">기록 표시</td>
+    <td valign="top">본인·상대의 최근 기록 반영 시각 표시<br>시각 정보가 없으면 ‘기록 반영 대기’ 표시</td>
+  </tr>
+</table>
 
 #### 결과
 
@@ -134,13 +202,32 @@
 
 - **데이터 매핑:** 스토리 퀘스트 응답에 맞춰 화면의 참조 필드와 표시 항목을 변경함.
 
-| 화면 항목 | 적용한 응답 필드 |
-| --- | --- |
-| 퀘스트 제목 | `quest_name`을 표시함 |
-| 미션 안내 | `mission_text`를 표시함 |
-| 운동 종목 | `exercise_name`을 표시함 |
-| 수행 목표 | `target`을 표시함 |
-| 스토리와의 연결 이유 | `story_reason`을 표시함 |
+<table>
+  <tr>
+    <th width="25%" align="left">화면 항목</th>
+    <th width="75%" align="left">적용한 응답 필드</th>
+  </tr>
+  <tr>
+    <td valign="top">퀘스트 제목</td>
+    <td valign="top"><code>quest_name</code>을 표시함</td>
+  </tr>
+  <tr>
+    <td valign="top">미션 안내</td>
+    <td valign="top"><code>mission_text</code>를 표시함</td>
+  </tr>
+  <tr>
+    <td valign="top">운동 종목</td>
+    <td valign="top"><code>exercise_name</code>을 표시함</td>
+  </tr>
+  <tr>
+    <td valign="top">수행 목표</td>
+    <td valign="top"><code>target</code>을 표시함</td>
+  </tr>
+  <tr>
+    <td valign="top">스토리와의 연결 이유</td>
+    <td valign="top"><code>story_reason</code>을 표시함</td>
+  </tr>
+</table>
 
 - **퀘스트 상태 처리:** 운동 퀘스트 ID가 전달되면 기존 대화 선택지를 비우고 활성 퀘스트를 설정함.
 - **화면 상태 구분:** 운동 수행 단계와 일반 대화 선택 단계를 구분함.
@@ -149,7 +236,7 @@
 
 - **표시 결과:** 퀘스트 제목·운동·목표·수행 이유를 응답 필드에 맞춰 표시함.
 - **사용자 흐름:** 스토리에서 제시된 운동과 다음 수행 목표를 함께 확인할 수 있도록 변경함.
-- **[스토리 퀘스트 표시 및 상태 처리 변경 커밋](https://github.com/sweetnsweat/mobile/commit/4e9475780924d3ce5ee4a8b1fb33622b43a75760)
+- [스토리 퀘스트 표시 및 상태 처리 변경 커밋](https://github.com/sweetnsweat/mobile/commit/4e9475780924d3ce5ee4a8b1fb33622b43a75760)
 
 ### 3.4. 알림 진입과 내비게이션 초기화 시점 연결
 
@@ -181,16 +268,44 @@
 
 ### 4.3. 기술별 적용 내용과 역할
 
-| 기술 | 적용 내용과 역할 |
-| --- | --- |
-| React Native·TypeScript | 앱의 모든 화면과 사용자 인터랙션을 구현하고, 서비스·화면·API 응답 타입을 관리함 |
-| React Navigation | 인증·온보딩·컨디션 입력과 홈·루틴·대화·배틀·마이페이지 사이의 화면 전환을 구성함 |
-| Axios | 인증·루틴·퀘스트·상점·배틀 등 도메인별 서비스 모듈로 API 호출을 분리함 |
-| Health Connect | 걸음 수·거리·칼로리·운동 세션 등의 기록을 조회하고 서버 전송용 샘플로 변환함. 팀의 방향 조정에 따라 건강 데이터를 운동 처방보다 수행 검증에 활용함 |
-| Firebase Messaging·Notifee | 로그인 후 FCM 토큰 등록, 알림 권한 요청, 토큰 갱신, 알림 수신·표시·클릭 처리를 연동함 |
-| Figma | 모바일 UI 구성과 협업에 활용함 |
-| Spring Boot·PostgreSQL·Redis | 백엔드 담당자가 인증, 루틴, 퀘스트 완료, 보상, 상점, 배틀과 데이터 저장을 구현함. 본인은 모바일에서 해당 API를 연결하고 테스트함 |
-| FastAPI·LangChain·LangGraph·OpenAI API | AI 담당자가 캐릭터 스토리·대화·선택지·퀘스트 생성과 진행 상태를 구현함. 본인은 앱의 대화·퀘스트 표시와 기록 복원 흐름을 구현함 |
+<table>
+  <tr>
+    <th width="25%" align="left">기술</th>
+    <th width="75%" align="left">적용 내용과 역할</th>
+  </tr>
+  <tr>
+    <td valign="top">React Native<br>TypeScript</td>
+    <td valign="top">앱의 모든 화면과 사용자 인터랙션을 구현하고, 서비스·화면·API 응답 타입을 관리함</td>
+  </tr>
+  <tr>
+    <td valign="top">React Navigation</td>
+    <td valign="top">인증·온보딩·컨디션 입력<br>홈·루틴·대화·배틀·마이페이지 간 화면 전환 구성</td>
+  </tr>
+  <tr>
+    <td valign="top">Axios</td>
+    <td valign="top">인증·루틴·퀘스트·상점·배틀 등 도메인별 서비스 모듈로 API 호출을 분리함</td>
+  </tr>
+  <tr>
+    <td valign="top">Health Connect</td>
+    <td valign="top">걸음 수·거리·칼로리·운동 세션 등의 기록을 조회하고 서버 전송용 샘플로 변환함.<br><br>팀의 방향 조정에 따라 건강 데이터를 운동 처방보다 수행 검증에 활용함</td>
+  </tr>
+  <tr>
+    <td valign="top">Firebase Messaging<br>Notifee</td>
+    <td valign="top">로그인 후 FCM 토큰 등록·갱신<br>알림 권한 요청<br>알림 수신·표시·클릭 처리</td>
+  </tr>
+  <tr>
+    <td valign="top">Figma</td>
+    <td valign="top">모바일 UI 구성과 협업에 활용함</td>
+  </tr>
+  <tr>
+    <td valign="top">Spring Boot<br>PostgreSQL · Redis</td>
+    <td valign="top">백엔드 담당자가 인증, 루틴, 퀘스트 완료, 보상, 상점, 배틀과 데이터 저장을 구현함.<br><br>본인은 모바일에서 해당 API를 연결하고 테스트함</td>
+  </tr>
+  <tr>
+    <td valign="top">FastAPI<br>LangChain · LangGraph<br>OpenAI API</td>
+    <td valign="top">AI 담당자가 캐릭터 스토리·대화·선택지·퀘스트 생성과 진행 상태를 구현함.<br><br>본인은 앱의 대화·퀘스트 표시와 기록 복원 흐름을 구현함</td>
+  </tr>
+</table>
 
 ---
 
@@ -200,11 +315,28 @@
 - **검증 과정:** 주요 기능 반복 확인 → 오류 원인 정리·팀원 공유 → 수정 후 재검증을 수행함.
 - **확인 범위:** 화면 동작, API 상태 코드·응답값·오류 메시지를 함께 확인함.
 
-| 검증 항목 | 방법 |
-| --- | --- | --- |
-| 주요 기능과 화면 흐름 | 회원가입·로그인·퀘스트 조회·캐릭터 선택·랭킹 조회·상점 이용을 반복 테스트함 | 화면 이동·버튼 동작·입력값 처리를 점검하고, 오류를 팀원과 공유한 뒤 수정 후 재검증함 |
-| 앱·서버 API 연동 | React Native 앱과 Spring Boot 서버의 요청·응답을 확인함 | 상태 코드·응답값·오류 메시지를 확인하고 연동 오류를 팀원에게 공유함 |
-| 건강 데이터 연동 | Android 실기기와 웨어러블 연동 환경에서 테스트함 | 권한 설정·데이터 수집·연결 문제를 확인함. [읽기 권한 선언](https://github.com/sweetnsweat/mobile/commit/504a09f2f8b10821e78455e01f56a1c05db2bed3) [Android 권한 처리 연결](https://github.com/sweetnsweat/mobile/commit/3b30a915ad95a0ee67f476437de9235f071d9298) |
+<table>
+  <tr>
+    <th width="18%" align="left">검증 항목</th>
+    <th width="36%" align="left">검증 방법</th>
+    <th width="46%" align="left">확인 내용·근거</th>
+  </tr>
+  <tr>
+    <td valign="top">주요 기능과 화면 흐름</td>
+    <td valign="top">회원가입·로그인·퀘스트 조회·캐릭터 선택·랭킹 조회·상점 이용을 반복 테스트함</td>
+    <td valign="top">화면 이동·버튼 동작·입력값 처리를 점검하고, 오류를 팀원과 공유한 뒤 수정 후 재검증함</td>
+  </tr>
+  <tr>
+    <td valign="top">앱·서버 API 연동</td>
+    <td valign="top">React Native 앱과 Spring Boot 서버의 요청·응답을 확인함</td>
+    <td valign="top">상태 코드·응답값·오류 메시지를 확인하고 연동 오류를 팀원에게 공유함</td>
+  </tr>
+  <tr>
+    <td valign="top">건강 데이터 연동</td>
+    <td valign="top">Android 실기기와 웨어러블 연동 환경에서 테스트함</td>
+    <td valign="top">권한 설정·데이터 수집·연결 문제를 확인함.<br><br><a href="https://github.com/sweetnsweat/mobile/commit/504a09f2f8b10821e78455e01f56a1c05db2bed3">읽기 권한 선언</a><br><a href="https://github.com/sweetnsweat/mobile/commit/3b30a915ad95a0ee67f476437de9235f071d9298">Android 권한 처리 연결</a></td>
+  </tr>
+</table>
 
 - **추가 수정:** [세계관 상세 모달 스크롤 수정](https://github.com/sweetnsweat/mobile/commit/cbe5e48a27e9a87431677c976763ea9be12d9de9), [Firebase Messaging 호출 방식 변경](https://github.com/sweetnsweat/mobile/commit/6801f2905feaee52d730422883a1dba248ce864a) 내역이 있음.
 - **자동 테스트 코드:** [기본 테스트](https://github.com/sweetnsweat/mobile/blob/375cbfe/__tests__/App.test.tsx)
@@ -230,15 +362,40 @@
 
 ### 6.1. 사용자에게 제공한 기능
 
-| 추가·개선한 기능 | 사용자가 수행할 수 있게 된 활동 |
-| --- | --- |
-| 온보딩·루틴·컨디션 입력 | 운동 경험과 선호 운동을 입력하고, 기본 루틴 선택 또는 직접 생성한 루틴을 오늘 수행할 운동과 연결함 |
-| 캐릭터 대화와 운동 퀘스트 | 스토리를 진행하면서 운동 종목·목표·수행 이유를 확인하고 퀘스트를 수행함 |
-| 건강 데이터 연동 | 기기에 기록된 운동 데이터를 앱에서 읽어 퀘스트·배틀 검증에 활용하는 흐름을 제공함 |
-| 보상·상점·마이페이지 | 수행 후 보상과 성장 정보를 확인하고, 재화를 사용하거나 보유 요소를 조회함 |
-| 배틀·랭킹 | 다른 사용자와 기록을 비교하고 결과를 확인함. 배틀 화면에 기록 반영 시각을 표시함 |
-| 대화 기록 복원 | 기존 대화와 캐릭터 정보를 복원해 스토리를 이어갈 수 있도록 함 |
-| 푸시 알림 | 사용자가 알림 권한과 수신 설정을 조절하고, 알림을 통해 관련 화면으로 진입하는 흐름을 제공함 |
+<table>
+  <tr>
+    <th width="25%" align="left">추가·개선한 기능</th>
+    <th width="75%" align="left">사용자가 수행할 수 있게 된 활동</th>
+  </tr>
+  <tr>
+    <td valign="top">온보딩·루틴·컨디션 입력</td>
+    <td valign="top">운동 경험과 선호 운동을 입력하고, 기본 루틴 선택 또는 직접 생성한 루틴을 오늘 수행할 운동과 연결함</td>
+  </tr>
+  <tr>
+    <td valign="top">캐릭터 대화와 운동 퀘스트</td>
+    <td valign="top">스토리를 진행하면서 운동 종목·목표·수행 이유를 확인하고 퀘스트를 수행함</td>
+  </tr>
+  <tr>
+    <td valign="top">건강 데이터 연동</td>
+    <td valign="top">기기에 기록된 운동 데이터를 앱에서 읽어 퀘스트·배틀 검증에 활용하는 흐름을 제공함</td>
+  </tr>
+  <tr>
+    <td valign="top">보상·상점·마이페이지</td>
+    <td valign="top">수행 후 보상과 성장 정보를 확인하고, 재화를 사용하거나 보유 요소를 조회함</td>
+  </tr>
+  <tr>
+    <td valign="top">배틀·랭킹</td>
+    <td valign="top">다른 사용자와 기록을 비교하고 결과를 확인함.<br><br>배틀 화면에 기록 반영 시각을 표시함</td>
+  </tr>
+  <tr>
+    <td valign="top">대화 기록 복원</td>
+    <td valign="top">기존 대화와 캐릭터 정보를 복원해 스토리를 이어갈 수 있도록 함</td>
+  </tr>
+  <tr>
+    <td valign="top">푸시 알림</td>
+    <td valign="top">사용자가 알림 권한과 수신 설정을 조절하고, 알림을 통해 관련 화면으로 진입하는 흐름을 제공함</td>
+  </tr>
+</table>
 
 - **팀 전체 결과:** 앱·백엔드·AI 서버를 연결한 서비스를 구현함.
 - **본인 기여:** 모든 모바일 화면, 건강 데이터·알림 연동, 앱 기능·API 테스트를 담당함.
@@ -252,13 +409,31 @@
 
 ### 6.3. 주요 화면
 
-| 캐릭터 대화·퀘스트 | 배틀 | 마이페이지 |
-| --- | --- | --- |
-| <img src="portfolio-assets/character-chat.jpg" alt="보고서 수록 캐릭터 대화와 퀘스트 화면" width="230"> | <img src="portfolio-assets/battle.jpg" alt="보고서 수록 배틀 화면" width="230"> | <img src="portfolio-assets/mypage.jpg" alt="보고서 수록 마이페이지 화면" width="230"> |
+<table>
+  <tr>
+    <th width="33%" align="left">캐릭터 대화·퀘스트</th>
+    <th width="34%" align="left">배틀</th>
+    <th width="33%" align="left">마이페이지</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="portfolio-assets/character-chat.jpg" alt="보고서 수록 캐릭터 대화와 퀘스트 화면" width="230"></td>
+    <td valign="top"><img src="portfolio-assets/battle.jpg" alt="보고서 수록 배틀 화면" width="230"></td>
+    <td valign="top"><img src="portfolio-assets/mypage.jpg" alt="보고서 수록 마이페이지 화면" width="230"></td>
+  </tr>
+</table>
 
-| 컨디션 입력 | 통계 조회 | 캐릭터 상점 |
-| --- | --- | --- |
-| <img src="portfolio-assets/condition.jpg" alt="보고서 수록 컨디션 입력 화면" width="230"> | <img src="portfolio-assets/statistics.jpg" alt="보고서 수록 통계 조회 화면" width="230"> | <img src="portfolio-assets/shop.jpg" alt="보고서 수록 캐릭터 상점 화면" width="230"> |
+<table>
+  <tr>
+    <th width="33%" align="left">컨디션 입력</th>
+    <th width="34%" align="left">통계 조회</th>
+    <th width="33%" align="left">캐릭터 상점</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="portfolio-assets/condition.jpg" alt="보고서 수록 컨디션 입력 화면" width="230"></td>
+    <td valign="top"><img src="portfolio-assets/statistics.jpg" alt="보고서 수록 통계 조회 화면" width="230"></td>
+    <td valign="top"><img src="portfolio-assets/shop.jpg" alt="보고서 수록 캐릭터 상점 화면" width="230"></td>
+  </tr>
+</table>
 
 ---
 
@@ -272,13 +447,32 @@
 
 ### 7.1. 실행 환경과 필수 설정
 
-| 항목 | 확인된 설정 |
-| --- | --- |
-| Node.js | `package.json`에서 22.11.0 이상을 요구함 |
-| Android | Android Studio 기반 개발 환경을 사용함. Gradle 설정은 최소 SDK 26, 컴파일·대상 SDK 36임 |
-| 건강 데이터 | Health Connect 지원 환경과 읽기 권한이 필요함. 실제 건강 데이터 연동 검증은 Android 실기기 기준으로 수행함 |
-| API 연결 | `src/config/api.ts`에서 백엔드 API와 AI 이미지 서버 주소를 설정함. Tailscale 기반 개발 서버를 공유했으며 현재 운영은 중단됨 |
-| 알림 | Android Firebase 설정과 서버의 발송 설정이 필요함. Android 13 이상 알림 권한 요청을 코드에 포함함 |
+<table>
+  <tr>
+    <th width="25%" align="left">항목</th>
+    <th width="75%" align="left">확인된 설정</th>
+  </tr>
+  <tr>
+    <td valign="top">Node.js</td>
+    <td valign="top"><code>package.json</code>에서 22.11.0 이상을 요구함</td>
+  </tr>
+  <tr>
+    <td valign="top">Android</td>
+    <td valign="top">Android Studio 기반 개발 환경을 사용함.<br><br>Gradle 설정은 최소 SDK 26, 컴파일·대상 SDK 36임</td>
+  </tr>
+  <tr>
+    <td valign="top">건강 데이터</td>
+    <td valign="top">Health Connect 지원 환경과 읽기 권한이 필요함.<br><br>실제 건강 데이터 연동 검증은 Android 실기기 기준으로 수행함</td>
+  </tr>
+  <tr>
+    <td valign="top">API 연결</td>
+    <td valign="top"><code>src/config/api.ts</code>에서 백엔드 API와 AI 이미지 서버 주소를 설정함.<br><br>Tailscale 기반 개발 서버를 공유했으며 현재 운영은 중단됨</td>
+  </tr>
+  <tr>
+    <td valign="top">알림</td>
+    <td valign="top">Android Firebase 설정과 서버의 발송 설정이 필요함.<br><br>Android 13 이상 알림 권한 요청을 코드에 포함함</td>
+  </tr>
+</table>
 
 ### 7.2. Android 실행 명령
 
@@ -298,9 +492,25 @@ npm run android
 
 ## 8. 관련 문서
 
-| 자료 | 확인할 수 있는 내용 |
-| --- | --- |
-| 요구명세서 \[첨부 필요: 저장소 내 문서 링크\] | 기능 요구사항, UI 요구사항, 비기능 요구사항과 검수 목표를 확인할 수 있음 |
-| 최종 결과보고서 \[첨부 필요: 저장소 내 문서 링크\] | 시스템 구조, 구현 기술, 주요 함수, 사용자 매뉴얼, 역할 분담, 회의록과 팀원별 포트폴리오를 확인할 수 있음 |
-| 본인 최종보고서 \[첨부 필요: 저장소 내 문서 링크\] | 모바일 화면 구현, 건강 데이터 연동, 앱·API 테스트 기여를 확인할 수 있음 |
-| [Android FCM 연동 가이드](https://github.com/sweetnsweat/mobile/blob/375cbfe/docs/FCM_ANDROID_FRONTEND_GUIDE.md) | 모바일·백엔드·서버의 알림 연동 역할과 설정을 확인할 수 있음 |
+<table>
+  <tr>
+    <th width="25%" align="left">자료</th>
+    <th width="75%" align="left">확인할 수 있는 내용</th>
+  </tr>
+  <tr>
+    <td valign="top">요구명세서 [첨부 필요: 저장소 내 문서 링크]</td>
+    <td valign="top">기능 요구사항, UI 요구사항, 비기능 요구사항과 검수 목표를 확인할 수 있음</td>
+  </tr>
+  <tr>
+    <td valign="top">최종 결과보고서 [첨부 필요: 저장소 내 문서 링크]</td>
+    <td valign="top">시스템 구조, 구현 기술, 주요 함수, 사용자 매뉴얼, 역할 분담, 회의록과 팀원별 포트폴리오를 확인할 수 있음</td>
+  </tr>
+  <tr>
+    <td valign="top">본인 최종보고서 [첨부 필요: 저장소 내 문서 링크]</td>
+    <td valign="top">모바일 화면 구현, 건강 데이터 연동, 앱·API 테스트 기여를 확인할 수 있음</td>
+  </tr>
+  <tr>
+    <td valign="top"><a href="https://github.com/sweetnsweat/mobile/blob/375cbfe/docs/FCM_ANDROID_FRONTEND_GUIDE.md">Android FCM 연동 가이드</a></td>
+    <td valign="top">모바일·백엔드·서버의 알림 연동 역할과 설정을 확인할 수 있음</td>
+  </tr>
+</table>
