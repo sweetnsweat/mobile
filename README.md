@@ -1,6 +1,6 @@
 # Sweet & Sweat \| 캐릭터챗 기반 운동 습관 형성 앱
 운동 습관 형성이 필요한 초보자가 캐릭터와 대화하며 스토리 속 퀘스트를 실제 운동으로 수행하고 보상을 얻는 모바일 앱.
-- 담당: 팀장 · React Native 모바일 화면 구현 · 건강 데이터·알림 연동 · 앱·API 테스트
+- 담당: React Native 모바일 화면 구현 · 건강 데이터·알림 연동 · 앱·API 테스트
 - 대표 문제 해결: 배틀 조회 전 건강 데이터 동기화 시점 조정, 대화 재진입 시 캐릭터 이미지 복원
 - 핵심 흐름: 루틴 설정 → 오늘의 운동 확인 → 캐릭터 대화·운동 퀘스트 → 수행 완료·보상 → 스토리 진행
 <img src="portfolio-assets/home.jpg" alt="최종 결과보고서에 수록된 Sweet & Sweat 홈 화면" width="300">
@@ -11,7 +11,7 @@
 | --- | --- |
 | 개발 기간 | 2026.03.04 \~ 2026.06.10, 3개월 |
 | 개발 형태·인원 | 대학 수업 팀 프로젝트, 3명 |
-| 담당 직무 | 팀장, 모바일 앱 개발 및 웨어러블 기기 연동 테스트 |
+| 담당 직무 | 모바일 앱 개발 및 웨어러블 기기 연동 테스트 |
 | 담당 범위 | 프로젝트 기획 및 UI 구성, React Native 기반 화면 구현, Health Connect 건강 데이터·FCM·알림 연동, 사용자 경험 테스트 |
 | 모바일 기술 | React Native 0.85.2, React 19.2.3, TypeScript, React Navigation, Axios, Health Connect, Firebase Messaging, Notifee |
 | 전체 시스템 | React Native 앱, Spring Boot 백엔드, FastAPI AI 서버로 구성. PostgreSQL·Redis·Docker·Tailscale 등을 팀의 서버 환경에 활용함 |
