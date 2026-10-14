@@ -1,0 +1,1567 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ScrollView, StatusBar, ActivityIndicator, Modal, Pressable, Animated,
+  KeyboardAvoidingView, Platform, InteractionManager,
+} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ChevronLeft, ChevronRight, Send, RotateCcw, Sparkles, Trophy, Star, Flame, Ticket } from 'lucide-react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../types/navigation';
+import { ImageWithFallback } from '../../components/ImageWithFallback';
+import { ScreenBackground } from '../../components/ScreenBackground';
+import { usePulseAnimation } from '../../hooks/usePulseAnimation';
+import {
+  playStory,
+  fetchStoryHistory,
+  getStoryChatRoom,
+  extractStoryTexts,
+  extractChoices,
+  StoryPlayResponse,
+  StoryChoice,
+  HistoryItem,
+  StoryChatMessage,
+  StoryChatRoomResponse,
+} from '../../services/StoryService';
+import { completeQuest, getTodayQuest, type CompleteQuestRequest } from '../../services/QuestService';
+import { readQuestVerificationHealthSamples } from '../../services/HealthConnectService';
+import { AI_MEDIA_ORIGIN } from '../../config/api';
+import { consumeShopItem, getShopItems, type ShopItem } from '../../services/ShopService';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'CharacterQuest'>;
+
+const DEFAULT_SCENARIO_ID = 7;
+
+function resolveCharacterImage(url?: string): string {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${AI_MEDIA_ORIGIN}${url}`;
+}
+
+function historyCharacterImage(item: any): string {
+  return resolveCharacterImage(item?.character_image_url ?? item?.image_url ?? item?.imageUrl);
+}
+
+function historyItemRole(item: HistoryItem): Role {
+  return item.role === 'assistant'                                                       ? 'character'
+      : item.role === 'choice' || item.role === 'user' || item.role === 'user_message' ? 'user'
+      : item.role === 'narration'                                                      ? 'narration'
+      : 'system';
+}
+
+function historyItemToMessage(item: HistoryItem): ChatMessage {
+  return {
+    id: msgId(),
+    role: historyItemRole(item),
+    text: item.content,
+    speaker: item.character_name ?? undefined,
+    characterImg: historyCharacterImage(item),
+  };
+}
+
+function normalizedText(value?: string | null): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function storyLogMatchesHistoryItem(log: StoryChatMessage, item: HistoryItem): boolean {
+  const content = normalizedText(item.content);
+  if (!content) return false;
+
+  const candidates = [
+    log.userMessage,
+    log.narrationText,
+    log.dialogueText,
+    log.outputText,
+  ].map(normalizedText).filter(Boolean);
+
+  return candidates.some(candidate => candidate === content || candidate.includes(content) || content.includes(candidate));
+}
+
+function splitHistoryMessagesByChapter(history: HistoryItem[], restored: ChatMessage[], logs: StoryChatMessage[]) {
+  if (history.length === 0 || restored.length === 0 || logs.length === 0) {
+    return { previousPages: [] as ChatMessage[][], currentPage: restored };
+  }
+
+  const pages: ChatMessage[][] = [];
+  const chapterIndexes = new Map<number, number>();
+  let searchStart = 0;
+  let lastChapterNum = logs[0]?.chapterNum ?? 1;
+
+  history.forEach((item, index) => {
+    let matchedLogIndex = -1;
+    for (let i = searchStart; i < logs.length; i += 1) {
+      if (storyLogMatchesHistoryItem(logs[i], item)) {
+        matchedLogIndex = i;
+        break;
+      }
+    }
+
+    if (matchedLogIndex >= 0) {
+      searchStart = matchedLogIndex;
+      lastChapterNum = logs[matchedLogIndex].chapterNum ?? lastChapterNum;
+    }
+
+    if (!chapterIndexes.has(lastChapterNum)) {
+      chapterIndexes.set(lastChapterNum, pages.length);
+      pages.push([]);
+    }
+    pages[chapterIndexes.get(lastChapterNum)!].push(restored[index]);
+  });
+
+  const nonEmptyPages = pages.filter(page => page.length > 0);
+  if (nonEmptyPages.length <= 1) {
+    return { previousPages: [] as ChatMessage[][], currentPage: restored };
+  }
+
+  return {
+    previousPages: nonEmptyPages.slice(0, -1),
+    currentPage: nonEmptyPages[nonEmptyPages.length - 1],
+  };
+}
+
+// ─── 타입 ─────────────────────────────────────────────────────────────────────
+
+type Role = 'character' | 'narration' | 'user' | 'system' | 'quest';
+
+interface ChatMessage {
+  id: string;
+  role: Role;
+  text: string;
+  speaker?: string;
+  characterImg?: string;
+  sourceKey?: string;
+  time?: string;
+  questId?: number;
+  questData?: any;
+}
+
+let _msgId = 0;
+function msgId() { return String(++_msgId); }
+
+function firstStoryQuest(questData: any): any {
+  if (Array.isArray(questData?.quests) && questData.quests.length > 0) {
+    return questData.quests[0];
+  }
+  return questData;
+}
+
+function storyQuestId(questData: any): number | null {
+  const quest = firstStoryQuest(questData);
+  const id =
+    questData?.workout_quest_id ??
+    quest?.workout_quest_id ??
+    quest?.id ??
+    quest?.original_routine?.external_quest_id ??
+    quest?.routine_items?.[0]?.external_quest_id;
+  return typeof id === 'number' ? id : null;
+}
+
+function storyQuestCompleted(questData: any): boolean {
+  const quest = firstStoryQuest(questData);
+  return Boolean(questData?.completed || quest?.completed || quest?.status === 'COMPLETED' || quest?.quest?.completed);
+}
+
+function isQuestSkipPass(item: ShopItem): boolean {
+  const metadataText = item.metadata ? JSON.stringify(item.metadata) : '';
+  const searchable = [
+    item.itemType,
+    item.name,
+    item.description,
+    item.effect,
+    metadataText,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  return item.itemType === 'ticket' && (
+    searchable.includes('quest_skip') ||
+    searchable.includes('quest skip') ||
+    searchable.includes('퀘스트 스킵') ||
+    searchable.includes('스킵권') ||
+    searchable.includes('skip')
+  );
+}
+
+function formatServerTime(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return undefined;
+  const h = date.getHours();
+  const m = date.getMinutes().toString().padStart(2, '0');
+  return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${m}`;
+}
+
+function phaseLabel(phase?: string): string {
+  if (!phase) return '';
+  const map: Record<string, string> = {
+    INTRO: '인트로',
+    MAIN: '진행 중',
+    CHOICE: '선택',
+    ENDING: '엔딩',
+    RESULT: '결과',
+    NARRATION: '나레이션',
+  };
+  return map[phase] ?? '';
+}
+
+function isInternalStoryMarker(text?: string | null): boolean {
+  if (!text) return false;
+  const normalized = text.trim().toLowerCase();
+  return normalized === 'chapter_done' || normalized === 'story_done';
+}
+
+// ─── 메인 화면 ────────────────────────────────────────────────────────────────
+
+export function CharacterQuestScreen({ navigation, route }: Props) {
+  const scenario_id = route.params?.scenario_id ?? DEFAULT_SCENARIO_ID;
+  const introStarted = route.params?.introStarted ?? false;
+
+  const [messages,      setMessages]      = useState<ChatMessage[]>([]);
+  const [previousMessagePages, setPreviousMessagePages] = useState<ChatMessage[][]>([]);
+  const [nextMessagePages, setNextMessagePages] = useState<ChatMessage[][]>([]);
+  const [choices,       setChoices]       = useState<StoryChoice[]>([]);
+  const [selectedChoiceKey, setSelectedChoiceKey] = useState<string | null>(null);
+  const [storyData,     setStoryData]     = useState<StoryPlayResponse | null>(null);
+  const [characterMeta, setCharacterMeta] = useState<{ name: string; sub: string; img: string }>({ name: '', sub: '', img: '' });
+  const [input,         setInput]         = useState('');
+  const [loading,       setLoading]       = useState(true);
+  const [isRestarting,  setIsRestarting]  = useState(true);
+  const [sending,       setSending]       = useState(false);
+  const [activeQuest,   setActiveQuest]   = useState<{ id: number; data: any } | null>(null);
+  const [completingQuest, setCompletingQuest] = useState(false);
+  const [skipPassItem, setSkipPassItem] = useState<ShopItem | null>(null);
+  const [loadingSkipPass, setLoadingSkipPass] = useState(false);
+  const [usingSkipPass, setUsingSkipPass] = useState(false);
+  const [restartConfirmVisible, setRestartConfirmVisible] = useState(false);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const lastMessageRef = useRef<View>(null);
+  const inputRef = useRef<TextInput>(null);
+  const initialScrollPendingRef = useRef(false);
+  const initialScrollTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const inputFocusTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const scrollContentHeightRef = useRef(0);
+  const scrollViewHeightRef = useRef(0);
+
+  // ── 초기 로드 ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    initStory();
+  }, [scenario_id]);
+
+  useEffect(() => {
+    return () => {
+      initialScrollTimerRefs.current.forEach(clearTimeout);
+      initialScrollTimerRefs.current = [];
+      inputFocusTimerRefs.current.forEach(clearTimeout);
+      inputFocusTimerRefs.current = [];
+    };
+  }, []);
+
+  function scrollToBottom(animated: boolean) {
+    const targetY = Math.max(0, scrollContentHeightRef.current - scrollViewHeightRef.current);
+    lastMessageRef.current?.measureLayout(
+      scrollRef.current as any,
+      (_x, y) => scrollRef.current?.scrollTo({ y, animated }),
+      () => {},
+    );
+    scrollRef.current?.scrollTo({ y: targetY, animated });
+    scrollRef.current?.scrollTo({ y: 999999, animated });
+    scrollRef.current?.scrollToEnd({ animated });
+    requestAnimationFrame(() => {
+      lastMessageRef.current?.measureLayout(
+        scrollRef.current as any,
+        (_x, y) => scrollRef.current?.scrollTo({ y, animated }),
+        () => {},
+      );
+      scrollRef.current?.scrollTo({ y: targetY, animated });
+      scrollRef.current?.scrollTo({ y: 999999, animated });
+      scrollRef.current?.scrollToEnd({ animated });
+    });
+  }
+
+  function scheduleInitialScrollToBottom() {
+    if (!initialScrollPendingRef.current || loading || messages.length === 0) return;
+
+    initialScrollTimerRefs.current.forEach(clearTimeout);
+    initialScrollTimerRefs.current = [];
+
+    InteractionManager.runAfterInteractions(() => {
+      scrollToBottom(false);
+    });
+
+    [0, 50, 150, 300, 600, 1000].forEach((delay, index, delays) => {
+      const timer = setTimeout(() => {
+        scrollToBottom(false);
+        if (index === delays.length - 1) {
+          initialScrollPendingRef.current = false;
+        }
+      }, delay);
+      initialScrollTimerRefs.current.push(timer);
+    });
+  }
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (loading || initialScrollPendingRef.current) return;
+    scrollToBottom(true);
+  }, [messages, loading]);
+
+  useEffect(() => {
+    scheduleInitialScrollToBottom();
+  }, [loading, messages.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadQuestSkipPass() {
+      if (!activeQuest) {
+        setSkipPassItem(null);
+        return;
+      }
+
+      setLoadingSkipPass(true);
+      try {
+        const list = await getShopItems('pass');
+        console.log('[ShopAPI] quest skip pass candidates', JSON.stringify(list.items, null, 2));
+        const pass = list.items.find(item => isQuestSkipPass(item) && item.ownedQuantity > 0) ?? null;
+        if (!cancelled) setSkipPassItem(pass);
+      } catch (e: any) {
+        console.log('[ShopAPI] quest skip pass load error:', e?.response?.data ?? e?.message ?? e);
+        if (!cancelled) setSkipPassItem(null);
+      } finally {
+        if (!cancelled) setLoadingSkipPass(false);
+      }
+    }
+
+    loadQuestSkipPass();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeQuest?.id]);
+
+  // ── API 호출 공통 처리 ────────────────────────────────────────────────────
+
+  function applyResponse(data: StoryPlayResponse) {
+    console.log('[StoryAPI] response:', JSON.stringify(data, null, 2));
+    setStoryData(data);
+
+    // dialogue 또는 opening_characters에서 캐릭터 정보 추출 → 헤더 프로필 갱신
+    const firstChar = data.dialogue?.[0] ?? data.opening_characters?.[0];
+    if (firstChar) {
+      const name = firstChar.character_name ?? firstChar.name ?? '';
+      const sub  = firstChar.representativeCharacterTitle ?? '';
+      const img  = resolveCharacterImage(firstChar.character_image_url);
+      setCharacterMeta({ name, sub, img });
+    }
+
+    // 나레이션/question_text 등 텍스트 필드 추출
+    const storyTexts = extractStoryTexts(data);
+    const newChoices = extractChoices(data);
+
+    const speaker = typeof data.speaker === 'string' ? data.speaker : undefined;
+
+    if (storyTexts.length > 0) {
+      storyTexts.forEach(storyText => {
+        if (isInternalStoryMarker(storyText.text)) return;
+        const role = storyText.type === 'narration' ? 'narration' : 'character';
+        pushMessage(
+          role,
+          storyText.text,
+          role === 'character' ? speaker : undefined,
+          storyText.sourceKey,
+          undefined,
+          role === 'character' ? resolveCharacterImage((data as any).character_image_url) : undefined,
+        );
+      });
+    } else {
+      const label = phaseLabel(data.phase);
+      if (label) {
+        pushMessage('system', `[${label}${data.chapter_num ? ` · 챕터 ${data.chapter_num}` : ''}${data.unit_index != null ? ` · ${data.unit_index + 1}/${data.total_units}` : ''}]`);
+      }
+    }
+
+    // dialogue 배열에서 캐릭터 대사 직접 추출 (extractStoryTexts는 배열 미지원)
+    const formattedTime = formatServerTime(data.server_time);
+    if (Array.isArray(data.dialogue) && data.dialogue.length > 0) {
+      data.dialogue.forEach((item: any) => {
+        const text = item.dialogue ?? item.text;
+        const itemSpeaker = item.character_name ?? item.name;
+        const itemImg = resolveCharacterImage(item.character_image_url ?? item.image_url);
+        if (text) pushMessage('character', text, itemSpeaker, undefined, formattedTime, itemImg);
+      });
+    }
+
+    const questData = data.workout_quest;
+    const questId = data.workout_quest_id ?? storyQuestId(questData);
+    if (questId) {
+      setChoices([]);
+      setSelectedChoiceKey(null);
+      setActiveQuest(storyQuestCompleted(questData) ? null : { id: questId, data: questData ?? null });
+      setMessages(prev => [...prev, { id: msgId(), role: 'quest', text: '', questId, questData }]);
+    } else {
+      setChoices(newChoices);
+      setSelectedChoiceKey(null);
+    }
+
+    if (data.is_chapter_completed && !data.is_story_completed) {
+      pushMessage('system', '이 챕터가 완료되었습니다. 다음 챕터로 이동할 수 있습니다.');
+    }
+    if (data.is_story_completed) {
+      pushMessage('system', '스토리가 완료되었습니다.');
+    }
+  }
+
+  function pushMessage(role: Role, text: string, speaker?: string, sourceKey?: string, time?: string, characterImg?: string) {
+    setMessages(prev => [...prev, { id: msgId(), role, text, speaker, sourceKey, time, characterImg }]);
+  }
+
+  function clearMessagePages() {
+    setPreviousMessagePages([]);
+    setNextMessagePages([]);
+  }
+
+  function showPreviousMessagePage() {
+    if (previousMessagePages.length === 0 || sending) return;
+    const previousPage = previousMessagePages[previousMessagePages.length - 1];
+    setPreviousMessagePages(prev => prev.slice(0, -1));
+    setNextMessagePages(prev => [messages, ...prev]);
+    setMessages(previousPage);
+    setChoices([]);
+    setSelectedChoiceKey(null);
+  }
+
+  function showNextMessagePage() {
+    if (nextMessagePages.length === 0 || sending) return;
+    const nextPage = nextMessagePages[0];
+    setNextMessagePages(prev => prev.slice(1));
+    setPreviousMessagePages(prev => [...prev, messages]);
+    setMessages(nextPage);
+    setChoices([]);
+    setSelectedChoiceKey(null);
+  }
+
+  // ── 상태만 갱신 (메시지 추가 없이) ──────────────────────────────────────
+
+  function applyStateOnly(data: StoryPlayResponse) {
+    setStoryData(data);
+    // restart:false 응답엔 dialogue/opening_characters가 없을 수 있어서 더 넓게 탐색
+    const firstChar =
+      data.dialogue?.[0] ??
+      data.opening_characters?.[0] ??
+      data.characters?.[0] ??
+      data.character;
+    if (firstChar) {
+      setCharacterMeta({
+        name: firstChar.character_name ?? firstChar.name ?? '',
+        sub:  firstChar.representativeCharacterTitle ?? firstChar.title ?? '',
+        img:  resolveCharacterImage(firstChar.character_image_url ?? firstChar.image_url),
+      });
+    }
+    setChoices(extractChoices(data));
+    setSelectedChoiceKey(null);
+  }
+
+  // ── 최초 진입: 히스토리 확인 후 복원 or 새 시작 ────────────────────────
+
+  function applyCharacterMetaFromChatRoom(room: StoryChatRoomResponse) {
+    const representative =
+      room.characters.find(character => character.representative) ??
+      room.characters[0] ??
+      null;
+    const imageUrl = representative?.imageUrl || room.chat.imageUrl;
+    const name = representative?.name || room.chat.displayName || '';
+    const sub = representative?.title || '';
+
+    if (imageUrl || name || sub) {
+      setCharacterMeta(prev => ({
+        name: prev.name || name,
+        sub: prev.sub || sub,
+        img: prev.img || resolveCharacterImage(imageUrl),
+      }));
+    }
+  }
+
+  async function fillCharacterMetaFromChatRoom(messageLimit = 1): Promise<StoryChatRoomResponse | null> {
+    try {
+      const room = await getStoryChatRoom(scenario_id, messageLimit);
+      applyCharacterMetaFromChatRoom(room);
+      return room;
+    } catch (e: any) {
+      console.log('[StoryAPI] chat room character meta fallback skipped:', e?.response?.data ?? e?.message ?? e);
+      return null;
+    }
+  }
+
+  async function initStory() {
+    setLoading(true);
+    setMessages([]);
+    clearMessagePages();
+    setChoices([]);
+    setSelectedChoiceKey(null);
+    setStoryData(null);
+    initialScrollPendingRef.current = false;
+    try {
+      const history = await fetchStoryHistory(scenario_id);
+      if (history.length > 0) {
+        // 이전 대화 복원
+        setIsRestarting(false);
+        const restored = history.map(historyItemToMessage);
+        initialScrollPendingRef.current = true;
+        // 히스토리에서 캐릭터 이름 선 추출 (API 응답 전 헤더 채우기)
+        const firstCharItem = history.find(item => item.role === 'assistant' && item.character_name);
+        if (firstCharItem?.character_name || firstCharItem) {
+          setCharacterMeta(prev => ({
+            ...prev,
+            name: firstCharItem?.character_name ?? prev.name,
+            img: prev.img || historyCharacterImage(firstCharItem),
+          }));
+        }
+        const room = await fillCharacterMetaFromChatRoom(100);
+        const pagedHistory = splitHistoryMessagesByChapter(history, restored, room?.recentMessages ?? []);
+        setPreviousMessagePages(pagedHistory.previousPages);
+        setNextMessagePages([]);
+        setMessages(pagedHistory.currentPage);
+        // 현재 선택지·상태만 가져오기 (메시지 추가 없음)
+        const data = await playStory({ scenario_id, restart: false });
+        applyStateOnly(data);
+      } else {
+        // 히스토리 없음 → 새 스토리 시작
+        setIsRestarting(!introStarted);
+        const data = await playStory({ scenario_id, restart: !introStarted });
+        applyResponse(data);
+      }
+      if (false) setSending(true);
+      if (false) {
+      const nextStory = await playStory({
+        scenario_id,
+        user_message: '퀘스트 완료',
+        restart: false,
+      });
+      applyResponse(nextStory);
+      }
+    } catch (e: any) {
+      setSelectedChoiceKey(null);
+      console.log('[StoryAPI] initStory error:', e?.response?.data ?? e?.message ?? e);
+      pushMessage('system', `연결 오류: ${e?.message ?? 'AI 서버에 접속할 수 없습니다.'}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── 스토리 시작/이어가기 ──────────────────────────────────────────────────
+
+  async function loadStory(restart: boolean) {
+    setLoading(true);
+    setIsRestarting(restart);
+    if (restart) {
+      setMessages([]);
+      clearMessagePages();
+      setChoices([]);
+      setSelectedChoiceKey(null);
+      setStoryData(null);
+    }
+    try {
+      const data = await playStory({ scenario_id, restart });
+      applyResponse(data);
+    } catch (e: any) {
+      console.log('[StoryAPI] loadStory error:', e?.response?.data ?? e?.message ?? e);
+      pushMessage('system', `연결 오류: ${e?.message ?? 'AI 서버에 접속할 수 없습니다.'}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── 사용자 메시지 전송 ────────────────────────────────────────────────────
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || sending) return;
+
+    pushMessage('user', text);
+    setInput('');
+    setSending(true);
+    try {
+      const data = await playStory({ scenario_id, user_message: text });
+      applyResponse(data);
+    } catch (e: any) {
+      pushMessage('system', `오류: ${e?.message ?? '응답을 가져올 수 없습니다.'}`);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // ── 선택지 선택 ──────────────────────────────────────────────────────────
+
+  async function handleChoice(choice: StoryChoice, choiceKey: string) {
+    pushMessage('user', choice.text);
+    setSelectedChoiceKey(choiceKey);
+    setSending(true);
+    try {
+      const data = await playStory({ scenario_id, choice_id: choice.id, restart: false });
+      applyResponse(data);
+    } catch (e: any) {
+      pushMessage('system', `오류: ${e?.message ?? '선택을 처리할 수 없습니다.'}`);
+    } finally {
+      setSelectedChoiceKey(null);
+      setSending(false);
+    }
+  }
+
+  // ── 다음 챕터 ────────────────────────────────────────────────────────────
+
+  async function handleNextChapter() {
+    const archivedMessages = messages;
+    setSending(true);
+    if (archivedMessages.length > 0) {
+      setPreviousMessagePages(prev => [...prev, archivedMessages]);
+    }
+    setNextMessagePages([]);
+    setMessages([]);
+    setChoices([]);
+    setSelectedChoiceKey(null);
+    setActiveQuest(null);
+    try {
+      const data = await playStory({ scenario_id, restart: false });
+      applyResponse(data);
+    } catch (e: any) {
+      if (archivedMessages.length > 0) {
+        setPreviousMessagePages(prev => prev.slice(0, -1));
+      }
+      setMessages([
+        ...archivedMessages,
+        { id: msgId(), role: 'system', text: `오류: ${e?.message ?? '다음 챕터로 이동할 수 없습니다.'}` },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // ── 퀘스트 완료 ──────────────────────────────────────────────────────────
+
+  async function handleQuestComplete() {
+    if (!activeQuest || completingQuest) return;
+    setCompletingQuest(true);
+    try {
+      const todayQuest = await getTodayQuest();
+      const questId = todayQuest.id;
+      const verificationStartTime =
+        todayQuest.verificationWindow?.startTime ??
+        activeQuest.data?.verificationWindow?.startTime;
+
+      const completionEndTime = new Date().toISOString();
+      console.log('[QuestAPI] complete quest health window', {
+        questId,
+        verificationStartTime,
+        completionEndTime,
+      });
+
+      let completeRequest: CompleteQuestRequest;
+      if (verificationStartTime) {
+        const healthResult = await readQuestVerificationHealthSamples(
+          verificationStartTime,
+          completionEndTime,
+        );
+        console.log('[QuestAPI] complete quest health samples', {
+          sampleCount: healthResult.samples.length,
+          grantedRecordTypes: healthResult.grantedRecordTypes,
+          deniedRecordTypes: healthResult.deniedRecordTypes,
+          samples: JSON.stringify(healthResult.samples, null, 2),
+        });
+        completeRequest = { healthSamples: healthResult.samples };
+      } else {
+        completeRequest = {
+          progressValue: 1,
+          proof: { source: 'manual' },
+        };
+        console.log('[QuestAPI] complete quest manual fallback', {
+          questId,
+          reason: 'missing_verification_start_time',
+          body: JSON.stringify(completeRequest, null, 2),
+        });
+      }
+
+      const result = await completeQuest(questId, completeRequest);
+      setActiveQuest(null);
+      const parts = [
+        result.rewardExp  ? `+${result.rewardExp} EXP`  : '',
+        result.rewardGold ? `+${result.rewardGold} 골드` : '',
+      ].filter(Boolean).join('  ');
+      const completionMessage =
+        result.completionType === 'VERIFIED'
+          ? '운동 데이터로 인증 완료됐어요.'
+          : result.completionType === 'MANUAL'
+            ? '운동 기록이 부족해 수동 완료로 처리됐어요. 배틀 점수에는 반영되지 않아요.'
+            : '퀘스트가 완료됐어요.';
+      pushMessage('system', `${completionMessage}${parts ? `  ${parts}` : ''}`);
+      try {
+        setSending(true);
+        const nextStory = await playStory({
+          scenario_id,
+          user_message: 'quest completed',
+          restart: false,
+        });
+        applyResponse(nextStory);
+      } catch (storyError: any) {
+        pushMessage('system', `Story continue error: ${storyError?.message ?? 'Unable to load next story message.'}`);
+      }
+    } catch (e: any) {
+      const code = e?.response?.data?.code;
+      if (code === 'INSUFFICIENT_HEALTH_PROOF') {
+        pushMessage('system', '운동 기록 동기화가 아직 끝나지 않았어요. 잠시 뒤 다시 시도해주세요.');
+        return;
+      }
+      pushMessage('system', `오류: ${e?.message ?? '퀘스트 완료 실패'}`);
+    } finally {
+      setCompletingQuest(false);
+      setSending(false);
+    }
+  }
+
+  async function handleQuestSkip() {
+    if (!activeQuest || !skipPassItem || usingSkipPass || completingQuest) return;
+    setUsingSkipPass(true);
+    try {
+      console.log('[ShopAPI] use quest skip pass request', {
+        itemId: skipPassItem.id,
+        questId: activeQuest.id,
+        itemName: skipPassItem.name,
+      });
+      const result = await consumeShopItem(skipPassItem.id);
+      console.log('[ShopAPI] use quest skip pass response', JSON.stringify(result, null, 2));
+
+      setActiveQuest(null);
+      setSkipPassItem(null);
+      const quest = result.quest as any;
+      const parts = [
+        quest?.rewardExp ? `+${quest.rewardExp} EXP` : '',
+        quest?.rewardGold ? `+${quest.rewardGold} 골드` : '',
+      ].filter(Boolean).join('  ');
+      pushMessage('system', `퀘스트 스킵권을 사용했어요. 오늘 퀘스트는 수동 완료 처리되고 배틀 점수에는 반영되지 않아요.${parts ? `  ${parts}` : ''}`);
+
+      try {
+        setSending(true);
+        const nextStory = await playStory({
+          scenario_id,
+          user_message: 'quest skipped',
+          restart: false,
+        });
+        applyResponse(nextStory);
+      } catch (storyError: any) {
+        pushMessage('system', `Story continue error: ${storyError?.message ?? 'Unable to load next story message.'}`);
+      }
+    } catch (e: any) {
+      const code = e?.response?.data?.code;
+      if (code === 'QUEST_ALREADY_COMPLETED') {
+        setActiveQuest(null);
+        setSkipPassItem(null);
+        pushMessage('system', '이미 완료된 퀘스트예요. 이어서 진행할게요.');
+        try {
+          setSending(true);
+          const nextStory = await playStory({
+            scenario_id,
+            user_message: 'quest already completed',
+            restart: false,
+          });
+          applyResponse(nextStory);
+        } catch (storyError: any) {
+          pushMessage('system', `Story continue error: ${storyError?.message ?? 'Unable to load next story message.'}`);
+        }
+        return;
+      }
+      pushMessage('system', `오류: ${e?.message ?? '퀘스트 스킵권 사용 실패'}`);
+    } finally {
+      setUsingSkipPass(false);
+      setSending(false);
+    }
+  }
+
+  // ── 처음부터 시작 확인 ────────────────────────────────────────────────────
+
+  function confirmRestart() {
+    setRestartConfirmVisible(true);
+  }
+
+  function handleRestartConfirm() {
+    setRestartConfirmVisible(false);
+    loadStory(true);
+  }
+
+  // ── 챕터 완료 여부 ────────────────────────────────────────────────────────
+
+  const isViewingPastPage  = nextMessagePages.length > 0;
+  const canInteractWithPage = !isViewingPastPage;
+  const isChapterCompleted = canInteractWithPage && storyData?.is_chapter_completed && !storyData?.is_story_completed;
+  const isStoryCompleted   = canInteractWithPage && storyData?.is_story_completed;
+  const hasChoices         = canInteractWithPage && choices.length > 0;
+  const showTextInput      = canInteractWithPage && !hasChoices && !isChapterCompleted && !isStoryCompleted && !activeQuest;
+
+  function focusMessageInput() {
+    if (!showTextInput || sending) return;
+    inputRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (!showTextInput || sending || loading || messages.length === 0) return;
+
+    inputFocusTimerRefs.current.forEach(clearTimeout);
+    inputFocusTimerRefs.current = [];
+
+    const focusInput = () => {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+
+    InteractionManager.runAfterInteractions(focusInput);
+
+    [80, 250, 600].forEach(delay => {
+      const timer = setTimeout(focusInput, delay);
+      inputFocusTimerRefs.current.push(timer);
+    });
+
+    return () => {
+      inputFocusTimerRefs.current.forEach(clearTimeout);
+      inputFocusTimerRefs.current = [];
+    };
+  }, [showTextInput, sending, loading, messages.length]);
+
+  // ── 렌더 ─────────────────────────────────────────────────────────────────
+
+  return (
+    <ScreenBackground>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <SafeAreaView style={s.safe}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={s.kav}
+        >
+
+        {/* 헤더 */}
+        <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+            <ChevronLeft size={16} color="#fff" strokeWidth={2.5} />
+          </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <View style={s.avatarWrap}>
+              <ImageWithFallback uri={characterMeta.img} style={s.avatarImg} />
+              <View style={s.onlineDot} />
+            </View>
+            <View>
+              <Text style={s.headerName}>{characterMeta.name}</Text>
+              <Text style={s.headerSub}>{characterMeta.sub}</Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={confirmRestart} style={s.restartBtn}>
+            <RotateCcw size={16} color="rgba(255,255,255,0.85)" strokeWidth={2} />
+          </TouchableOpacity>
+        </LinearGradient>
+
+
+        {/* 채팅 */}
+        {(previousMessagePages.length > 0 || nextMessagePages.length > 0) && (
+          <View style={s.pageNav}>
+            <TouchableOpacity
+              onPress={showPreviousMessagePage}
+              disabled={previousMessagePages.length === 0 || sending}
+              activeOpacity={0.75}
+              style={[s.pageNavBtn, (previousMessagePages.length === 0 || sending) && s.pageNavBtnDisabled]}
+            >
+              <ChevronLeft size={14} color={previousMessagePages.length === 0 || sending ? '#d1d5db' : '#be185d'} strokeWidth={2.5} />
+              <Text style={[s.pageNavTxt, (previousMessagePages.length === 0 || sending) && s.pageNavTxtDisabled]}>이전 챕터</Text>
+            </TouchableOpacity>
+            <Text style={s.pageNavStatus}>{isViewingPastPage ? '이전 대화 보기' : '현재 챕터'}</Text>
+            <TouchableOpacity
+              onPress={showNextMessagePage}
+              disabled={nextMessagePages.length === 0 || sending}
+              activeOpacity={0.75}
+              style={[s.pageNavBtn, (nextMessagePages.length === 0 || sending) && s.pageNavBtnDisabled]}
+            >
+              <Text style={[s.pageNavTxt, (nextMessagePages.length === 0 || sending) && s.pageNavTxtDisabled]}>다음 챕터</Text>
+              <ChevronRight size={14} color={nextMessagePages.length === 0 || sending ? '#d1d5db' : '#be185d'} strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <ScrollView
+          ref={scrollRef}
+          style={s.chatScroll}
+          contentContainerStyle={s.chatContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onTouchEnd={focusMessageInput}
+          onLayout={(event) => {
+            scrollViewHeightRef.current = event.nativeEvent.layout.height;
+            scheduleInitialScrollToBottom();
+          }}
+          onContentSizeChange={(_, height) => {
+            scrollContentHeightRef.current = height;
+            scheduleInitialScrollToBottom();
+          }}
+        >
+          {loading ? (
+            <View style={s.centerWrap}>
+              <ActivityIndicator color="#ec4899" size="large" />
+              <Text style={s.loadingTxt}>{isRestarting ? '스토리를 시작하는 중...' : '스토리를 불러오는 중...'}</Text>
+            </View>
+          ) : (
+            messages.map((msg, index) => (
+              <View
+                key={`${msg.id}-${index}`}
+                ref={index === messages.length - 1 ? lastMessageRef : undefined}
+              >
+                <MessageBubble
+                  message={msg}
+                  characterImg={characterMeta.img}
+                  showQuestComplete={canInteractWithPage && activeQuest?.id === msg.questId}
+                  completingQuest={completingQuest}
+                  showQuestSkip={canInteractWithPage && activeQuest?.id === msg.questId && Boolean(skipPassItem)}
+                  loadingQuestSkip={canInteractWithPage && activeQuest?.id === msg.questId && loadingSkipPass}
+                  usingQuestSkip={usingSkipPass}
+                  onQuestComplete={handleQuestComplete}
+                  onQuestSkip={handleQuestSkip}
+                />
+              </View>
+            ))
+          )}
+          {sending && (
+            <View style={s.typingRow}>
+              <View style={s.msgAvatar}>
+                <ImageWithFallback uri={characterMeta.img} style={s.msgAvatarImg} />
+              </View>
+              <View style={s.typingBubble}>
+                <ActivityIndicator color="#9ca3af" size="small" />
+              </View>
+            </View>
+          )}
+          <View style={{ height: 8 }} />
+        </ScrollView>
+
+        {/* 하단 입력 / 선택지 / 다음 챕터 */}
+        {!loading && (
+          <>
+            {hasChoices && (
+              <View style={s.choiceArea}>
+                {choices.map((choice, index) => {
+                  const choiceKey = `${choice.id}-${index}`;
+                  const selected = selectedChoiceKey === choiceKey;
+                  return (
+                    <TouchableOpacity
+                      key={choiceKey}
+                      onPress={() => handleChoice(choice, choiceKey)}
+                      disabled={sending}
+                      activeOpacity={0.85}
+                      style={s.choiceWrap}
+                    >
+                      {selected ? (
+                        <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.choiceSelected}>
+                          <Text style={s.choiceSelectedTxt}>{choice.text}</Text>
+                        </LinearGradient>
+                      ) : (
+                        <View style={s.choiceDefault}>
+                          <Text style={s.choiceDefaultTxt}>{choice.text}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {isChapterCompleted && (
+              <View style={s.nextChapterArea}>
+                <TouchableOpacity onPress={handleNextChapter} disabled={sending} activeOpacity={0.85} style={s.nextChapterBtn}>
+                  <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.nextChapterGrad}>
+                    <Text style={s.nextChapterTxt}>다음 챕터로 ▶</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {showTextInput && (
+              <View style={s.inputArea}>
+                <TextInput
+                  ref={inputRef}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="메시지를 입력하세요..."
+                  placeholderTextColor="#9ca3af"
+                  style={s.textInput}
+                  onSubmitEditing={handleSend}
+                  returnKeyType="send"
+                  blurOnSubmit={false}
+                  editable={!sending}
+                  showSoftInputOnFocus
+                  autoCapitalize="sentences"
+                  autoCorrect={false}
+                  keyboardType="default"
+                  textContentType="none"
+                  importantForAutofill="no"
+                />
+                <TouchableOpacity onPress={handleSend} disabled={!input.trim() || sending} style={s.sendBtnWrap}>
+                  <LinearGradient
+                    colors={input.trim() ? ['#ec4899', '#0ea5e9'] : ['#d1d5db', '#d1d5db']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={s.sendBtn}
+                  >
+                    <Send size={18} color="#fff" strokeWidth={2} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {false && activeQuest && (
+              <View style={s.questCompleteArea}>
+                <TouchableOpacity onPress={handleQuestComplete} disabled={completingQuest} activeOpacity={0.85} style={s.questCompleteWrap}>
+                  <LinearGradient colors={['#facc15', '#ec4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.questCompleteBtn}>
+                    {completingQuest
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={s.questCompleteTxt}>💪 퀘스트 완료하기</Text>
+                    }
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {isStoryCompleted && (
+              <View style={s.nextChapterArea}>
+                <Text style={s.completedTxt}>스토리 완료 🎉</Text>
+                <TouchableOpacity onPress={confirmRestart} activeOpacity={0.85} style={s.nextChapterBtn}>
+                  <LinearGradient colors={['#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.nextChapterGrad}>
+                    <Text style={s.nextChapterTxt}>처음부터 다시하기</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+
+      <Modal
+        visible={restartConfirmVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setRestartConfirmVisible(false)}
+      >
+        <View style={s.restartModalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRestartConfirmVisible(false)} />
+          <View style={s.restartModalCard}>
+            <LinearGradient
+              colors={['#ec4899', '#0ea5e9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={s.restartModalIcon}
+            >
+              <RotateCcw size={22} color="#fff" strokeWidth={2.5} />
+            </LinearGradient>
+
+            <Text style={s.restartModalTitle}>처음부터 시작할까요?</Text>
+            <Text style={s.restartModalDesc}>
+              지금까지의 스토리 진행을 초기화하고 첫 장면부터 다시 시작합니다.
+            </Text>
+
+            <View style={s.restartModalNotice}>
+              <Text style={s.restartModalNoticeTxt}>이 작업은 되돌릴 수 없어요.</Text>
+            </View>
+
+            <View style={s.restartModalActions}>
+              <TouchableOpacity
+                onPress={() => setRestartConfirmVisible(false)}
+                activeOpacity={0.85}
+                style={s.restartCancelBtn}
+              >
+                <Text style={s.restartCancelTxt}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleRestartConfirm}
+                activeOpacity={0.85}
+                style={s.restartConfirmBtnWrap}
+              >
+                <LinearGradient
+                  colors={['#ec4899', '#0ea5e9']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={s.restartConfirmBtn}
+                >
+                  <Text style={s.restartConfirmTxt}>다시 시작</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </ScreenBackground>
+  );
+}
+
+// ─── 메시지 버블 ──────────────────────────────────────────────────────────────
+
+function MessageBubble({
+  message,
+  characterImg,
+  showQuestComplete = false,
+  completingQuest = false,
+  showQuestSkip = false,
+  loadingQuestSkip = false,
+  usingQuestSkip = false,
+  onQuestComplete,
+  onQuestSkip,
+}: {
+  message: ChatMessage;
+  characterImg: string;
+  showQuestComplete?: boolean;
+  completingQuest?: boolean;
+  showQuestSkip?: boolean;
+  loadingQuestSkip?: boolean;
+  usingQuestSkip?: boolean;
+  onQuestComplete?: () => void;
+  onQuestSkip?: () => void;
+}) {
+  const resolvedCharacterImg = message.characterImg || characterImg;
+  const sparkPulse = usePulseAnimation();
+  const starPulse  = usePulseAnimation();
+
+  if (message.role === 'quest') {
+    const q = firstStoryQuest(message.questData);
+    const routineItems = Array.isArray(q?.routine_items) ? q.routine_items : [];
+    const rewardExp = q?.original_routine?.reward_exp ?? routineItems[0]?.reward_exp;
+    const rewardGold = q?.original_routine?.reward_gold ?? routineItems[0]?.reward_gold;
+    return (
+      <View style={s.questCardWrap}>
+        {/* 퀘스트 발생 알림 */}
+        <View style={s.announcementWrap}>
+          <View style={s.announcement}>
+            <View style={s.sparkRow}>
+              <Animated.View style={{ opacity: sparkPulse }}>
+                <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
+              </Animated.View>
+              <Text style={s.announcementTitle}>퀘스트 발생!</Text>
+              <Animated.View style={{ opacity: sparkPulse }}>
+                <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
+              </Animated.View>
+            </View>
+            {q?.mission_text && <Text style={s.announcementSub}>{q.mission_text}</Text>}
+          </View>
+        </View>
+
+        <View style={s.questCard}>
+          <Animated.View style={[s.starRight, { opacity: starPulse }]}>
+            <Star size={24} color="#eab308" fill="#eab308" strokeWidth={2} />
+          </Animated.View>
+          <Animated.View style={[s.starLeft, { opacity: sparkPulse }]}>
+            <Star size={20} color="#ec4899" fill="#ec4899" strokeWidth={2} />
+          </Animated.View>
+
+          {/* 헤더 — 퀘스트 이름 */}
+          <LinearGradient colors={['#facc15', '#ec4899', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.questCardHeader}>
+            <View style={s.questCardHeaderInner}>
+              <Trophy size={22} color="#fff" strokeWidth={2.5} />
+              <Text style={s.questCardHeaderTitle} numberOfLines={2}>{q?.quest_name ?? '운동 퀘스트'}</Text>
+            </View>
+            <Text style={s.questCardHeaderSub}>특별 퀘스트</Text>
+          </LinearGradient>
+
+          <View style={s.questDetails}>
+            {/* 운동 종목 + 목표 배지 */}
+            <View style={s.infoBadgeRow}>
+              {q?.exercise_name && (
+                <View style={s.infoBadgeBlue}>
+                  <Flame size={18} color="#075985" strokeWidth={2.5} />
+                  <View style={s.infoBadgeText}>
+                    <Text style={s.infoBadgeTitleBlue}>운동</Text>
+                    <Text style={s.infoBadgeSubBlue}>{q.exercise_name}</Text>
+                  </View>
+                </View>
+              )}
+              {q?.target && (
+                <View style={s.infoBadgePink}>
+                  <Text style={s.infoBadgeTitlePink}>목표</Text>
+                  <Text style={s.infoBadgeSubPink}>{q.target}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* 스토리 이유 */}
+            {routineItems.length > 0 && (
+              <View style={s.routineItemList}>
+                {routineItems.map((item: any, index: number) => (
+                  <View key={`${item.exercise_name}-${index}`} style={s.routineItemRow}>
+                    <View style={s.routineItemDot} />
+                    <View style={s.routineItemText}>
+                      <Text style={s.routineItemName}>{item.exercise_name}</Text>
+                      <Text style={s.routineItemTarget}>{item.target}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {q?.story_reason && (
+              <View style={s.storyReasonBox}>
+                <Text style={s.storyReasonTxt}>📖 {q.story_reason}</Text>
+              </View>
+            )}
+
+            {/* 보상 */}
+            {(rewardExp != null || rewardGold != null) && (
+              <View style={s.rewardRow}>
+                {rewardExp != null && (
+                  <View style={s.rewardChip}>
+                    <Text style={s.rewardChipTxt}>EXP +{rewardExp}</Text>
+                  </View>
+                )}
+                {rewardGold != null && (
+                  <View style={s.rewardChip}>
+                    <Text style={s.rewardChipTxt}>Gold +{rewardGold}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            {false && (
+              <View style={s.rewardRow}>
+              <View style={s.rewardChip}>
+                <Text style={s.rewardChipTxt}>⭐ EXP +200</Text>
+              </View>
+              <View style={s.rewardChip}>
+                <Text style={s.rewardChipTxt}>🪙 Coin +300</Text>
+              </View>
+              </View>
+            )}
+          </View>
+          {(showQuestComplete || loadingQuestSkip || showQuestSkip) && (
+            <View style={s.questCompleteInCard}>
+              {showQuestComplete && onQuestComplete && (
+                <TouchableOpacity
+                  onPress={onQuestComplete}
+                  disabled={completingQuest || usingQuestSkip}
+                  activeOpacity={0.85}
+                  style={s.questCompleteWrap}
+                >
+                  <LinearGradient
+                    colors={['#facc15', '#ec4899']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={s.questCompleteBtn}
+                  >
+                    {completingQuest
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={s.questCompleteTxt}>퀘스트 완료하기</Text>
+                    }
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+              {loadingQuestSkip && (
+                <View style={s.questSkipLoading}>
+                  <ActivityIndicator color="#6b7280" size="small" />
+                </View>
+              )}
+              {showQuestSkip && onQuestSkip && (
+                <TouchableOpacity
+                  onPress={onQuestSkip}
+                  disabled={usingQuestSkip || completingQuest}
+                  activeOpacity={0.85}
+                  style={s.questSkipWrap}
+                >
+                  <Ticket size={18} color="#92400e" strokeWidth={2.5} />
+                  {usingQuestSkip
+                    ? <ActivityIndicator color="#92400e" size="small" />
+                    : <Text style={s.questSkipTxt}>스킵권 사용하기</Text>
+                  }
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  if (message.role === 'narration') {
+    if (message.sourceKey === 'question_text') {
+      return (
+        <View style={s.announcementWrap}>
+          <View style={s.announcement}>
+            <View style={s.sparkRow}>
+              <Animated.View style={{ opacity: sparkPulse }}>
+                <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
+              </Animated.View>
+              <Text style={s.announcementTitle}>이벤트 발생!</Text>
+              <Animated.View style={{ opacity: sparkPulse }}>
+                <Sparkles size={20} color="#eab308" strokeWidth={2.5} />
+              </Animated.View>
+            </View>
+            <Text style={s.announcementSub}>{message.text}</Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={s.narrationWrap}>
+        {message.speaker && <Text style={s.narrationSpeaker}>{message.speaker}</Text>}
+        <View style={s.narrationBox}>
+          <Text style={s.narrationTxt}>{message.text}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (message.role === 'system') {
+    return (
+      <View style={s.systemMsgWrap}>
+        <View style={s.systemMsg}>
+          <Text style={s.systemMsgTxt}>{message.text}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (message.role === 'user') {
+    return (
+      <View style={s.userMsgRow}>
+        <View style={s.userBubble}>
+          <Text style={s.userMsgTxt}>{message.text}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 'character' — 캐릭터 말풍선 (Screen2 coachMsgBubble 스타일)
+  return (
+    <View style={s.msgRow}>
+      <View style={s.msgAvatar}>
+        <ImageWithFallback uri={resolvedCharacterImg} style={s.msgAvatarImg} />
+      </View>
+      <View style={s.msgBubbleWrap}>
+        {message.speaker && <Text style={s.msgSpeaker}>{message.speaker}</Text>}
+        <View style={s.msgBubble}>
+          <Text style={s.msgTxt}>{message.text}</Text>
+        </View>
+        {message.time && <Text style={s.msgTime}>{message.time}</Text>}
+      </View>
+    </View>
+  );
+}
+
+// ─── 스타일 ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  safe: { flex: 1 },
+  kav: { flex: 1 },
+
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  backBtn: { width: 32, height: 32, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatarWrap: { position: 'relative' },
+  avatarImg: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#fff' },
+  onlineDot: { position: 'absolute', bottom: -1, right: -1, width: 12, height: 12, backgroundColor: '#4ade80', borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
+  headerName: { fontWeight: '700', color: '#fff', fontSize: 15 },
+  headerSub: { fontSize: 11, color: '#fce7f3' },
+  restartBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+
+  pageNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#fce7f3', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  pageNavBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, minWidth: 86, borderRadius: 999, borderWidth: 1, borderColor: '#fbcfe8', backgroundColor: '#fdf2f8', paddingHorizontal: 10, paddingVertical: 6 },
+  pageNavBtnDisabled: { borderColor: '#f3f4f6', backgroundColor: '#f9fafb' },
+  pageNavTxt: { fontSize: 11, fontWeight: '800', color: '#be185d' },
+  pageNavTxtDisabled: { color: '#d1d5db' },
+  pageNavStatus: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '800', color: '#6b7280' },
+
+chatScroll: { flex: 1 },
+  chatContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 12 },
+
+  centerWrap: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
+  loadingTxt: { fontSize: 13, color: '#9ca3af' },
+
+  // 캐릭터 말풍선 (Screen2 coachMsgBubble 스타일)
+  msgRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  msgAvatar: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', borderWidth: 2, borderColor: '#f9a8d4', flexShrink: 0 },
+  msgAvatarImg: { width: '100%', height: '100%' },
+  msgBubbleWrap: { flex: 1, gap: 2 },
+  msgSpeaker: { fontSize: 11, fontWeight: '700', color: '#be185d', letterSpacing: 0.3 },
+  msgBubble: { backgroundColor: '#fff', borderRadius: 16, borderTopLeftRadius: 4, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 2, borderColor: '#fbcfe8', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3 },
+  msgTxt: { fontSize: 14, color: '#1f2937', lineHeight: 20, fontWeight: '500' },
+  msgTime: { fontSize: 10, color: '#9ca3af', marginTop: 2 },
+
+  userMsgRow: { alignItems: 'flex-end' },
+  userBubble: { maxWidth: '75%', backgroundColor: '#ec4899', borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10 },
+  userMsgTxt: { fontSize: 14, color: '#fff', lineHeight: 21 },
+
+  systemMsgWrap: { alignItems: 'center' },
+  systemMsg: { backgroundColor: 'rgba(107,114,128,0.12)', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6, maxWidth: '85%' },
+  systemMsgTxt: { fontSize: 11, color: '#6b7280', fontStyle: 'italic', textAlign: 'center' },
+
+  typingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  typingBubble: { backgroundColor: '#fff', borderRadius: 16, borderTopLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 2, borderColor: '#fbcfe8' },
+
+  // 퀘스트 발표 (Screen2 스타일)
+  announcementWrap: { alignItems: 'center', width: '100%' },
+  announcement: { width: '100%', backgroundColor: 'rgba(107,114,128,0.2)', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, borderWidth: 2, borderColor: 'rgba(156,163,175,0.3)', gap: 8 },
+  sparkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  announcementTitle: { fontSize: 18, fontWeight: '800', color: '#1f2937', fontStyle: 'italic' },
+  announcementSub: { width: '100%', flexShrink: 1, flexWrap: 'wrap', fontSize: 14, color: '#4b5563', fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
+
+  // 나레이션
+  narrationWrap: { alignItems: 'center', gap: 4 },
+  narrationSpeaker: { fontSize: 11, fontWeight: '700', color: '#6b7280', letterSpacing: 0.5 },
+  narrationBox: { backgroundColor: 'rgba(107,114,128,0.15)', borderRadius: 16, paddingHorizontal: 20, paddingVertical: 14, maxWidth: '92%', borderWidth: 1, borderColor: 'rgba(156,163,175,0.3)' },
+  narrationTxt: { fontSize: 14, color: '#4b5563', fontStyle: 'italic', textAlign: 'center', lineHeight: 22 },
+
+  // 선택지 (Screen2 primary / secondary / tertiary 계층)
+  choiceArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#e5e7eb', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16, gap: 8, alignItems: 'center' },
+  choiceWrap: { width: '92%', maxWidth: 360, borderRadius: 12, overflow: 'hidden' },
+  choiceDefault: { paddingVertical: 13, backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'flex-start', paddingHorizontal: 16 },
+  choiceDefaultTxt: { width: '100%', fontSize: 14, fontWeight: '600', color: '#1f2937', textAlign: 'left' },
+  choiceSelected: { paddingVertical: 16, paddingHorizontal: 16, alignItems: 'flex-start', borderRadius: 12 },
+  choiceSelectedTxt: { width: '100%', color: '#fff', fontWeight: '800', fontSize: 15, textAlign: 'left' },
+
+  // 다음 챕터
+  nextChapterArea: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14, alignItems: 'center', gap: 8 },
+  nextChapterBtn: { width: '100%', borderRadius: 12, overflow: 'hidden' },
+  nextChapterGrad: { paddingVertical: 14, alignItems: 'center' },
+  nextChapterTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  completedTxt: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
+
+  // 텍스트 입력
+  inputArea: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  textInput: { flex: 1, backgroundColor: '#f3f4f6', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8, fontSize: 14, borderWidth: 1, borderColor: '#d1d5db', color: '#111827', maxHeight: 80 },
+  sendBtnWrap: { borderRadius: 20, overflow: 'hidden' },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
+  // 퀘스트 카드
+  questCardWrap: { gap: 12 },
+  questCard: { backgroundColor: '#fefce8', borderRadius: 20, borderWidth: 3, borderColor: '#facc15', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10, position: 'relative' },
+  starRight: { position: 'absolute', top: 50, right: 10, zIndex: 10 },
+  starLeft:  { position: 'absolute', top: 54, left: 10, zIndex: 10 },
+  questCardHeader: { paddingHorizontal: 20, paddingVertical: 14, alignItems: 'center', gap: 4 },
+  questCardHeaderInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  questCardHeaderTitle: { color: '#fff', fontWeight: '800', fontSize: 17 },
+  questCardHeaderSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' },
+  questDetails: { padding: 16, gap: 12 },
+  infoBadgeRow: { flexDirection: 'row', gap: 10 },
+  infoBadgeBlue: { flex: 1, backgroundColor: '#e0f2fe', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 2, borderColor: '#38bdf8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  infoBadgePink: { flex: 1, backgroundColor: '#fce7f3', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 2, borderColor: '#f9a8d4', alignItems: 'center', justifyContent: 'center' },
+  infoBadgeText: { alignItems: 'center' },
+  infoBadgeTitleBlue: { fontSize: 12, fontWeight: '700', color: '#075985' },
+  infoBadgeSubBlue: { fontSize: 11, color: '#0284c7', fontWeight: '600' },
+  infoBadgeTitlePink: { fontSize: 12, fontWeight: '700', color: '#9d174d' },
+  infoBadgeSubPink: { fontSize: 11, color: '#ec4899', fontWeight: '600' },
+  storyReasonBox: { backgroundColor: 'rgba(107,114,128,0.1)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderLeftWidth: 3, borderLeftColor: '#facc15' },
+  storyReasonTxt: { fontSize: 13, color: '#4b5563', lineHeight: 20, fontStyle: 'italic' },
+  rewardRow: { flexDirection: 'row', gap: 8 },
+  rewardChip: { flex: 1, backgroundColor: '#fef9c3', borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 2, borderColor: '#facc15' },
+  rewardChipTxt: { fontSize: 13, fontWeight: '700', color: '#a16207' },
+
+  // 퀘스트 완료 버튼
+  routineItemList: { gap: 8 },
+  routineItemRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#fde68a', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  routineItemDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ec4899' },
+  routineItemText: { flex: 1 },
+  routineItemName: { fontSize: 13, fontWeight: '800', color: '#1f2937' },
+  routineItemTarget: { fontSize: 11, fontWeight: '600', color: '#6b7280', marginTop: 2 },
+  questCompleteArea: { backgroundColor: '#fff', borderTopWidth: 2, borderTopColor: '#facc15', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
+  questCompleteInCard: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  questCompleteWrap: { borderRadius: 12, overflow: 'hidden' },
+  questCompleteBtn: { paddingVertical: 15, alignItems: 'center', borderRadius: 12 },
+  questCompleteTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  questSkipWrap: { borderRadius: 12, borderWidth: 2, borderColor: '#facc15', backgroundColor: '#fffbeb', paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  questSkipTxt: { color: '#92400e', fontWeight: '800', fontSize: 14 },
+  questSkipLoading: { paddingVertical: 6, alignItems: 'center' },
+
+  restartModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  restartModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 18,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fbcfe8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  restartModalIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  restartModalTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  restartModalDesc: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '500',
+    color: '#4b5563',
+    textAlign: 'center',
+  },
+  restartModalNotice: {
+    width: '100%',
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: '#fdf2f8',
+    borderWidth: 1,
+    borderColor: '#fbcfe8',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  restartModalNoticeTxt: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#be185d',
+    textAlign: 'center',
+  },
+  restartModalActions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  restartCancelBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  restartCancelTxt: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#6b7280',
+  },
+  restartConfirmBtnWrap: {
+    flex: 1.35,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  restartConfirmBtn: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restartConfirmTxt: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+  },
+});

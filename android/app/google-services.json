@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "375949643435",
+    "project_id": "sweetnsweat-9c052",
+    "storage_bucket": "sweetnsweat-9c052.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375949643435:android:d18e6e27233299bbb931ee",
+        "android_client_info": {
+          "package_name": "com.mindfitnative"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpHPkvt6QM0ACkFpFkHO6mw3D23_wUm7M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

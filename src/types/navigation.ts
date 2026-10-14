@@ -1,0 +1,45 @@
+export type ExerciseDetailParams = {
+  id: number;
+  name: string;
+  category: string;
+  categoryDisplayName: string;
+  level: string;
+  levelDisplayName: string;
+  equipment: string;
+  met: number;
+  estimatedKcalPerHour: number;
+  primaryMuscles: string[];
+  emoji: string;
+  liked: boolean;
+};
+
+export type RootStackParamList = {
+  EmojiMapHero: undefined;
+  Auth: undefined;
+  Onboarding: undefined;
+  RoutineSetup: { todayConditionCompleted: boolean; hideSkip?: boolean };
+  RoutineCreate: { routineId?: number } | undefined;
+  Home: undefined;
+  Condition: undefined;
+  Statistics: undefined;
+  Push: undefined;
+  CharacterQuest: { scenario_id?: number; introStarted?: boolean };
+  WorldIntro: { scenario_id: number };
+  CharacterQuest2: { scenario_id?: number; choices?: { id: number; text: string }[] };
+  Exercise: undefined;
+  ExerciseDetail: { exercise: ExerciseDetailParams };
+  CharacterSelect: undefined;
+  BattleLobby: undefined;
+  BattleMatching: { duration: '1d' | '7d' };
+  Battle: { battleId: number; duration?: '1d' | '7d' };
+  BattleResult: { battleId: number; duration?: '1d' | '7d' };
+  Mypage: undefined;
+  Shop: undefined;
+  WorldRanking: undefined;
+  ActivityRankingDetail: undefined;
+  StoryChatList: undefined;
+  AccountRecovery: { initialTab?: 'id' | 'password' } | undefined;
+  EditProfile: undefined;
+  ChangePassword: undefined;
+  BadgeList: undefined;
+};
