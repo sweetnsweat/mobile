@@ -185,16 +185,6 @@
 - **이미지 재로딩:** URL 변경 시 이전 실패 상태를 초기화해 다시 표시할 수 있도록 수정함.
 - [히스토리 조회 시 캐릭터 이미지 오류 수정 커밋](https://github.com/sweetnsweat/mobile/commit/e65288a957b7cc59a3c7824604ddee0f29810441)을 참고
 
-
-### 3.3. 알림 진입과 내비게이션 초기화 시점 연결
-
-- 처리 조건: 알림 클릭에 따른 화면 이동 요청이 내비게이션 초기화보다 먼저 발생하는 경우를 처리함.
-- 구현: `runWhenNavigationReady()`에서 준비 여부를 확인하고, 준비 전이면 이동 작업을 보관함. `NavigationContainer`의 `onReady`에서 보관한 작업을 실행함.
-- 적용: 앱 최초 실행 알림·백그라운드 알림 클릭을 배틀·결과·통계 화면 이동으로 연결함.
-- 한계: 보류 작업은 하나만 저장함. 내비게이션 준비와 로그인 완료는 별도 조건이며, 현재 코드에서는 이 두 조건을 함께 보장하지 않음.
-- 검증 범위: 코드에서 확인되는 처리 구조이며, 상태별 실기기 통과 기록은 별도로 첨부하지 않음.
-- 근거: [화면 이동 서비스](https://github.com/sweetnsweat/mobile/blob/375cbfeeabda70e1e3caeed58949e9dbefdaa7de/src/navigation/NavigationService.ts), [알림 서비스](https://github.com/sweetnsweat/mobile/blob/375cbfeeabda70e1e3caeed58949e9dbefdaa7de/src/services/FcmService.ts)
-
 ---
 
 ## 4. 기술 적용과 담당 범위
