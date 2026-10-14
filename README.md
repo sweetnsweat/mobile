@@ -419,7 +419,6 @@ npm run android
 
 - **스크립트 연결:** `package.json`의 `react-native run-android`를 실행함.
 
-※ 서버 운영 중단으로 당시와 동일한 서비스 사용 환경을 제공하지 않음.
 
 </details>
 
