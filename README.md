@@ -207,7 +207,7 @@
 - 운동 세션의 시작·종료 시각에서 분 단위 수행 시간을 계산하고, 걸음 수·거리·칼로리를 공통 샘플 구조로 변환함.
 - 거리는 퀘스트 검증에서 km, 서버 동기화에서는 m로 변환하여 각 요청 형식에 맞춤.
 - 권한 허용·거부 결과를 구분하고, 기록 유형별 읽기 오류를 개별 결과로 반환함.
-- 근거: [건강 데이터 변환·동기화 코드](https://github.com/sweetnsweat/mobile/blob/375cbfeeabda70e1e3caeed58949e9dbefdaa7de/src/services/HealthConnectService.ts)
+- [건강 데이터 변환·동기화 코드](https://github.com/sweetnsweat/mobile/blob/375cbfeeabda70e1e3caeed58949e9dbefdaa7de/src/services/HealthConnectService.ts) 참고
 
 ### 4.3. 기술별 적용 내용과 역할
 
