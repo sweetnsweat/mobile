@@ -226,7 +226,6 @@
 | --- | --- | --- |
 | <img src="portfolio-assets/condition.jpg" alt="보고서 수록 컨디션 입력 화면" width="230"> | <img src="portfolio-assets/statistics.jpg" alt="보고서 수록 통계 조회 화면" width="230"> | <img src="portfolio-assets/shop.jpg" alt="보고서 수록 캐릭터 상점 화면" width="230"> |
 
-- \[첨부 필요: 최종 커밋 기준 앱 실행 화면 및 오류 수정 전후 비교 화면\]
 
 ## 6. 실행 환경
 서버 운영은 현재 중단된 상태이며, 당시와 동일한 서비스 사용 환경을 제공하지 않음.
