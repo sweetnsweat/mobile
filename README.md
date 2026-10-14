@@ -276,7 +276,6 @@
   </tr>
 </table>
 
-- **추가 수정:** [세계관 상세 모달 스크롤 수정](https://github.com/sweetnsweat/mobile/commit/cbe5e48a27e9a87431677c976763ea9be12d9de9), [Firebase Messaging 호출 방식 변경](https://github.com/sweetnsweat/mobile/commit/6801f2905feaee52d730422883a1dba248ce864a) 내역이 있음.
 - **자동 테스트 코드:** [기본 테스트](https://github.com/sweetnsweat/mobile/blob/375cbfe/__tests__/App.test.tsx)
 
 <details>
